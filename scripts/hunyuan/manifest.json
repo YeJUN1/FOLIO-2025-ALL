@@ -1,0 +1,290 @@
+{
+    "_help": [
+        "资产规格书清单：scripts/hunyuan/generate.js 按此提交混元生3D任务。",
+        "字段：key=资产标识(文件名)；prompt=中文规格书；enabled=是否参与生成；",
+        "normalize=生成后等比缩放到该轴目标尺寸(米)；rotationFix=[rx,ry,rz]度(首轮实测后回填)；",
+        "collider=cuboid|none(注入物理碰撞体，'none'为纯视觉)。",
+        "字段级覆盖：action(pro|rapid)/model/generateType/faceCount/enablePBR 可写在单个资产上，默认用 defaults。"
+    ],
+    "defaults": {
+        "action": "pro",
+        "model": "3.1",
+        "generateType": "Normal",
+        "faceCount": 100000,
+        "enablePBR": false
+    },
+    "assets": [
+        {
+            "key": "moonGate",
+            "name": "月洞门",
+            "enabled": true,
+            "prompt": "中国苏州古典园林月洞门，独立建筑构件，墙体宽2.4米、高2.2米，白色粉墙中央开圆形门洞（直径约1.8米），墙厚0.25米，墙顶覆灰黑色瓦檐，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none",
+            "notes": "MVP 不设碰撞方便穿过门洞，后续可做组合碰撞体"
+        },
+        {
+            "key": "taihuRock",
+            "name": "太湖石（大）",
+            "enabled": true,
+            "prompt": "中国苏州古典园林大型太湖石，独立景观石，高约1.5米，宽约1米，瘦、皱、漏、透特征明显，天然灰白色石灰岩，大量天然孔洞与侵蚀纹理，无底座，无植物，无地面，无背景，完整独立物体，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 1.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "pavilion",
+            "name": "亭子",
+            "enabled": true,
+            "prompt": "中国苏州古典园林四角凉亭，独立建筑，高3米，占地约2.5米见方，四根深棕色木柱支撑，黛黑色四坡瓦顶四角起翘，亭内设木制坐凳栏杆，底部平整，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 3.0 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none",
+            "notes": "MVP 不设碰撞方便进入亭内，后续可做柱体组合碰撞"
+        },
+        {
+            "key": "corridor",
+            "name": "直廊",
+            "enabled": false,
+            "prompt": "中国苏州古典园林直廊模块，独立建筑模块，长2米、宽2米、高2.5米，深棕色木柱与横梁，黛黑色坡瓦屋顶，两侧开放式无墙，底部平整便于拼接，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "corridorCorner",
+            "name": "转角廊",
+            "enabled": false,
+            "prompt": "中国苏州古典园林90度转角廊模块，独立建筑模块，两个方向各长2米、宽2米、高2.5米，深棕色木柱与横梁，黛黑色坡瓦屋顶，两侧开放式无墙，底部平整便于与直廊拼接，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "wall",
+            "name": "白墙",
+            "enabled": false,
+            "prompt": "中国苏州古典园林白色粉墙直段模块，独立建筑模块，宽2米、厚0.25米、高2.8米，墙面平整干净，墙顶覆灰黑色瓦檐压边，底部平整便于拼接，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.8 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "wallWindow",
+            "name": "白墙+漏窗",
+            "enabled": false,
+            "prompt": "中国苏州古典园林白色粉墙模块，宽2米、厚0.25米、高2.8米，中央嵌海棠纹镂空漏窗，墙顶覆灰黑色瓦檐压边，底部平整便于拼接，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.8 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "eave",
+            "name": "屋檐",
+            "enabled": false,
+            "prompt": "中国苏州古典园林坡瓦屋檐模块，独立构件，长2米，屋面呈斜坡，黛黑灰色青瓦层叠瓦片纹理，檐口整齐，底部平整便于与其他模块拼接，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "x", "target": 2.0 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "railing",
+            "name": "木栏杆",
+            "enabled": false,
+            "prompt": "中国苏州古典园林木制栏杆模块，长2米、高0.9米，深棕色实木，竖条棂格与上下横梁结构，两端齐平便于拼接，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.9 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "woodenPillar",
+            "name": "木柱",
+            "enabled": false,
+            "prompt": "中国苏州古典园林木柱，独立构件，高2.5米，直径约0.18米，深棕色圆柱，表面带自然木纹，柱底带方形石础，底部平整，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "woodenDoor",
+            "name": "木门",
+            "enabled": false,
+            "prompt": "中国苏州古典园林双开木门，高2.2米、宽1.4米，深棕色木框，门板带方格棂格与铜色门环，门框平整，完整独立物体，无背景，无地面，无墙壁，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "woodenWindow",
+            "name": "木窗",
+            "enabled": false,
+            "prompt": "中国苏州古典园林木窗，高1.2米、宽1.0米，深棕色木框，回纹棂格窗芯镂空，结构完整，完整独立物体，无背景，无地面，无墙壁，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 1.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "taihuRockMedium",
+            "name": "太湖石（中）",
+            "enabled": false,
+            "prompt": "中国苏州古典园林中型太湖石，独立景观石，高约1.1米，瘦、皱、漏、透特征明显，天然灰白色石灰岩，孔洞与侵蚀纹理，无底座，无植物，无地面，无背景，完整独立物体，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 1.1 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "taihuRockSmall",
+            "name": "太湖石（小）",
+            "enabled": false,
+            "prompt": "中国苏州古典园林小型太湖石，独立景观石，高约0.7米，天然灰白色石灰岩，多孔洞，形态玲珑，无底座，无植物，无地面，无背景，完整独立物体，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.7 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "stoneBankA",
+            "name": "岸石A",
+            "enabled": false,
+            "prompt": "中国苏州古典园林岸石，独立景观石，高约0.5米，扁平天然石块，灰白色，表面粗糙带石纹，无底座，无植物，无地面，无背景，完整独立物体，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "stoneBankB",
+            "name": "岸石B",
+            "enabled": false,
+            "prompt": "中国苏州古典园林水岸石，独立景观石，高约0.45米，略圆润的不规则天然石块，灰白色，表面带风化纹理，无底座，无植物，无地面，无背景，完整独立物体，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.45 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "slabA",
+            "name": "石板A",
+            "enabled": false,
+            "prompt": "中国苏州古典园林方形石板，边长约1.2米、厚约0.1米，青灰色石材，边缘略有自然不规则，表面带细微石纹与磨损，底部平整，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "x", "target": 1.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "slabB",
+            "name": "石板B",
+            "enabled": false,
+            "prompt": "中国苏州古典园林不规则多边形石板，直径约1.0米、厚约0.1米，青灰色石材，边缘自然不规则，表面带石纹，底部平整，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "x", "target": 1.0 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "stoneBridge",
+            "name": "小石桥",
+            "enabled": false,
+            "prompt": "中国苏州古典园林单孔小石拱桥，长约2米、宽1.2米、高0.9米，灰白色石材，桥面微拱，两侧低矮石栏板，底部平整，完整独立物体，无背景，无地面，无水面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.9 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "stoneTable",
+            "name": "石桌",
+            "enabled": false,
+            "prompt": "中国苏州古典园林圆形石桌，高0.75米，桌面直径1.0米，灰白色石材，桌面圆润，石鼓形中柱支撑，底部平整，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.75 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "stoneStool",
+            "name": "石凳",
+            "enabled": false,
+            "prompt": "中国苏州古典园林鼓形石凳，高0.45米，直径0.35米，灰白色石材，鼓身带浅浮雕纹样，坐面平整，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.45 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "pineTreeA",
+            "name": "松树A",
+            "enabled": false,
+            "prompt": "中国苏州古典园林造型松树，高约2.8米，树干弯曲苍劲，深棕色树皮，翠绿色针叶层叠成云片状树冠，完整独立植物，无花盆，无地面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.8 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "plumTreeA",
+            "name": "梅树A",
+            "enabled": false,
+            "prompt": "中国苏州古典园林老梅树，高约2.5米，枝干横斜苍劲呈深褐色，枝头稀疏点缀粉白色梅花，完整独立植物，无花盆，无地面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "bambooA",
+            "name": "竹子A",
+            "enabled": false,
+            "prompt": "中国苏州古典园林一丛竹子，高约3米，约5至7根深绿色竹竿直立微弯，竹节清晰，竹叶繁茂，完整独立植物，无花盆，无地面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 3.0 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "bambooB",
+            "name": "竹子B",
+            "enabled": false,
+            "prompt": "中国苏州古典园林茂密竹丛，高约2.6米，深绿色竹竿密集交错，竹叶浓密成簇，完整独立植物，无花盆，无地面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 2.6 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "lotus",
+            "name": "荷花",
+            "enabled": false,
+            "prompt": "中国苏州古典园林单朵盛开粉色荷花，含茎高约0.5米，花瓣层叠自然，花蕊浅黄色，完整独立植物，无叶片，无花盆，无水面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.5 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "lotusLeaf",
+            "name": "荷叶",
+            "enabled": false,
+            "prompt": "中国苏州古典园林单片圆形荷叶，直径约0.4米，平展或边缘微卷，翠绿色带浅色脉络，完整独立植物，无花朵，无水面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "x", "target": 0.4 },
+            "rotationFix": [0, 0, 0],
+            "collider": "none"
+        },
+        {
+            "key": "lantern",
+            "name": "灯",
+            "enabled": false,
+            "prompt": "中国苏州古典园林石灯笼，高约1.2米，方形石座、镂空灯室与四坡石顶盖，灰白色风化石材，底部平整，完整独立物体，无光源，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 1.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "flowerPot",
+            "name": "花盆",
+            "enabled": false,
+            "prompt": "中国苏州古典园林陶瓷花盆，高约0.6米，青灰色圆形盆体，盆口圆润外翻，盆身带简约纹样，完整独立物体，盆内无植物，无地面，无背景，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 0.6 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        },
+        {
+            "key": "woodenSign",
+            "name": "木牌",
+            "enabled": false,
+            "prompt": "中国苏州古典园林木制指示牌，高约1.2米，单根深棕色木柱顶端悬挂长方形木牌，牌面空白无文字，木质纹理清晰，底部平整，完整独立物体，无背景，无地面，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "y", "target": 1.2 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid"
+        }
+    ]
+}

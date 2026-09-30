@@ -1,0 +1,14 @@
+{
+    "_help": [
+        "花园布局唯一数据源：新增模块 = manifest.json 写一条 + 这里写一条，无需改代码。",
+        "origin: 世界坐标锚点 [x,y,z]（y 仅在射线落空时作为地面兜底）。",
+        "objects[].asset: manifest 中的 key；position: 相对 origin 的偏移(米，y=离地高度)；",
+        "rotation: 欧拉角 [rx,ry,rz]（单位：度）；scale: 可选，注意缩放会与物理碰撞体尺寸不一致，建议保持 1。"
+    ],
+    "origin": [29, 0, -45],
+    "objects": [
+        { "asset": "moonGate",  "position": [-2.5, 0, 1.5],  "rotation": [0, 90, 0] },
+        { "asset": "taihuRock", "position": [0.5, 0, 0],     "rotation": [0, 37, 0] },
+        { "asset": "pavilion",  "position": [2.5, 0, -1.5],  "rotation": [0, -45, 0] }
+    ]
+}

@@ -1,0 +1,11 @@
+.DS_Store
+node_modules
+dist
+.vercel
+.VSCodeCounter
+.env*
+.autosave
+.wav
+!static/sounds/music/*.wav
+scripts/hunyuan/state.json
+resources/hunyuan-raw/
