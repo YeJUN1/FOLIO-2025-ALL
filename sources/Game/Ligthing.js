@@ -20,7 +20,11 @@ export class Lighting
         this.colorUniform = uniform(color('#ffffff'))
         this.intensityUniform = uniform(1)
         this.count = 1
-        this.mapSize = this.game.quality.level === 0 ? 2048 : 512
+        // 光照与阴影降频：每 2 帧更新一次（~30Hz）。光照方向由 dayCycles 缓慢驱动，
+        // 阴影贴图重渲成本（顶点吞吐 + 填充）由此摊薄一半；动态物体影子最多滞后 2 帧（<34ms）。
+        this.updateInterval = 2
+        this.updateCount = 0
+        this.mapSize = this.game.quality.level === 0 ? 1536 : 512
         this.shadowAmplitude = this.game.view.optimalArea.radius
         this.depth = this.game.view.optimalArea.radius * 2
         this.shadowBias = -0.001
@@ -42,8 +46,18 @@ export class Lighting
 
         this.game.ticker.events.on('tick', () =>
         {
-            this.update()
+            this.updateCount = (this.updateCount + 1) % this.updateInterval
+
+            if(this.updateCount === 0)
+                this.update()
         }, 9)
+
+        this.game.quality.events.on('change', () =>
+        {
+            this.mapSize = this.game.quality.level === 0 ? 1536 : 512
+            this.light.shadow.mapSize.set(this.mapSize, this.mapSize)
+            this.light.shadow.needsUpdate = true
+        })
 
         this.game.viewport.events.on('throttleChange', () =>
         {
@@ -110,6 +124,9 @@ export class Lighting
         this.light = new THREE.DirectionalLight(0xffffff, 5)
         this.light.position.setFromSpherical(this.spherical)
         this.light.castShadow = true
+        // 阴影贴图降频更新：仅在 update() / updateShadow() 置 needsUpdate 后重渲
+        // （three 在渲染后会将其自动复位为 false）
+        this.light.shadow.autoUpdate = false
 
         this.game.scene.add(this.light)
         this.game.scene.add(this.light.target)
@@ -165,11 +182,8 @@ export class Lighting
         this.light.shadow.camera.updateProjectionMatrix()
         this.light.shadow.mapSize.set(this.mapSize, this.mapSize)
 
-        this.game.quality.events.on('change', () =>
-        {
-            this.mapSize = this.game.quality.level === 0 ? 2048 : 512
-            this.light.shadow.mapSize.set(this.mapSize, this.mapSize)
-        })
+        // 相机/贴图参数变化后需重渲一次（autoUpdate=false 时必须手动触发）
+        this.light.shadow.needsUpdate = true
     }
 
     updateCoordinates()
@@ -211,5 +225,8 @@ export class Lighting
         // Apply day cycles values
         this.colorUniform.value.copy(this.game.dayCycles.properties.lightColor.value)
         this.intensityUniform.value = this.game.dayCycles.properties.lightIntensity.value
+
+        // 触发阴影贴图重渲（autoUpdate=false 时必须手动置位）
+        this.light.shadow.needsUpdate = true
     }
 }

@@ -93,9 +93,9 @@ export class PhysicsVehicle
             friction: 0.4,
             rotation: new THREE.Quaternion().setFromAxisAngle(new THREE.Euler(0, 1, 0), Math.PI * 0),
             colliders: [
-                { shape: 'cuboid', mass: 2.5, parameters: [ 1.3, 0.4, 0.85 ], position: { x: 0, y: -0.1, z: 0 }, centerOfMass: { x: 0, y: -0.5, z: 0 } }, // Main
-                { shape: 'cuboid', mass: 0, parameters: [ 0.5, 0.15, 0.65 ], position: { x: 0, y: 0.4, z: 0 } }, // Top
-                { shape: 'cuboid', mass: 0, parameters: [ 1.5, 0.5, 0.9 ], position: { x: 0.1, y: -0.2, z: 0 }, category: 'bumper' }, // Bumper
+                { shape: 'cuboid', mass: 2.5, parameters: [ 1.32, 0.29, 0.60 ], position: { x: 0.05, y: -0.58, z: 0 }, centerOfMass: { x: 0, y: -0.88, z: 0 } }, // Main
+                { shape: 'cuboid', mass: 0, parameters: [ 0.90, 0.14, 0.50 ], position: { x: -0.15, y: -0.40, z: 0 } }, // Top
+                { shape: 'cuboid', mass: 0, parameters: [ 1.45, 0.33, 0.64 ], position: { x: 0.06, y: -0.6177, z: 0 }, category: 'bumper' }, // Bumper
             ],
             canSleep: false,
             waterGravityMultiplier: 0,
@@ -138,8 +138,8 @@ export class PhysicsVehicle
 
         // Settings
         this.wheels.settings = {
-            offset: { x: 0.90, y: 0, z: 0.75 },
-            radius: 0.4,
+            offset: { x: 0.8430, y: 0, z: 0.5166 },
+            radius: 0.2068,
             directionCs: { x: 0, y: -1, z: 0 },
             axleCs: { x: 0, y: 0, z: 1 },
             frictionSlip: 0.9,

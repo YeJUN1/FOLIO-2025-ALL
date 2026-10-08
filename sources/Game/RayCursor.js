@@ -91,9 +91,19 @@ export class RayCursor
 
             if(intersects.length)
             {
+                let pointerX = this.game.inputs.pointer.current.x
+                let pointerY = this.game.inputs.pointer.current.y
+
+                // Mouse look => Aim from the screen center
+                if(this.game.view?.mouseLook?.isLocked)
+                {
+                    pointerX = this.game.viewport.width * 0.5
+                    pointerY = this.game.viewport.height * 0.5
+                }
+
                 const ndcPointer = new THREE.Vector2(
-                    (this.game.inputs.pointer.current.x / this.game.viewport.width) * 2 - 1,
-                    - ((this.game.inputs.pointer.current.y / this.game.viewport.height) * 2 - 1),
+                    (pointerX / this.game.viewport.width) * 2 - 1,
+                    - ((pointerY / this.game.viewport.height) * 2 - 1),
                 )
                 this.raycaster.setFromCamera(ndcPointer, this.game.view.camera)
 

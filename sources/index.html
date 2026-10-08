@@ -63,6 +63,14 @@
 
         <canvas class="js-canvas"></canvas>
 
+        <!-- Crosshair -->
+        <div class="js-crosshair crosshair">
+            <div class="line is-vertical is-top"></div>
+            <div class="line is-vertical is-bottom"></div>
+            <div class="line is-horizontal is-left"></div>
+            <div class="line is-horizontal is-right"></div>
+        </div>
+
         <!-- Touch buttons -->
         <div class="js-touch-buttons touch-buttons">
             <div class="js-overlay overlay"></div>
@@ -391,6 +399,10 @@
                                                         <tr>
                                                             <td><span class="key">LEFT CLICK (DRAG)</span></td>
                                                             <td>Move camera</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><span class="key">MOUSE MOVE</span></td>
+                                                            <td>Look around (click the game first, <span class="key">ESC</span> to release)</td>
                                                         </tr>
                                                         <tr>
                                                             <td><span class="key">H</span></td>

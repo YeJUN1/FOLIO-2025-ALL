@@ -257,6 +257,7 @@ export class VisualVehicle
         this.wheels = {}
         this.wheels.items = []
         this.wheels.steering = 0
+        this.wheels.limit = this.parts.chassis.userData.wheelLimit ?? - 0.5
 
         // Create wheels
         for(let i = 0; i < 4; i++)
@@ -374,16 +375,17 @@ export class VisualVehicle
     {
         this.boostTrails = {}
         this.boostTrails.instance = new Trails()
+        this.boostTrails.offset = this.parts.chassis.userData.boostTrails ?? { x: - 1.28, y: 0.1, z: 0.55 }
 
         this.boostTrails.leftReference = new THREE.Object3D()
-        this.boostTrails.leftReference.position.set(-1.28, 0.1, -0.55)
+        this.boostTrails.leftReference.position.set(this.boostTrails.offset.x, this.boostTrails.offset.y, - this.boostTrails.offset.z)
         this.parts.chassis.add(this.boostTrails.leftReference)
 
         this.boostTrails.left = this.boostTrails.instance.create()
         this.boostTrails.leftReference.getWorldPosition(this.boostTrails.left.position)
     
         this.boostTrails.rightReference = new THREE.Object3D()
-        this.boostTrails.rightReference.position.set(-1.28, 0.1, 0.55)
+        this.boostTrails.rightReference.position.set(this.boostTrails.offset.x, this.boostTrails.offset.y, this.boostTrails.offset.z)
         this.parts.chassis.add(this.boostTrails.rightReference)
 
         this.boostTrails.right = this.boostTrails.instance.create()
@@ -451,7 +453,7 @@ export class VisualVehicle
   
             const suspensionLength = physicalWheel.suspensionLength
             let wheelY = physicalWheel.basePosition.y - suspensionLength
-            wheelY = Math.min(wheelY, -0.5)
+            wheelY = Math.min(wheelY, this.wheels.limit)
 
             visualWheel.container.position.x = physicalWheel.basePosition.x
             visualWheel.container.position.y += (wheelY - visualWheel.container.position.y) * 25 * this.game.ticker.deltaScaled

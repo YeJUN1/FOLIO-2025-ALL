@@ -243,18 +243,25 @@ export class Physics
     
         for(const physical of this.physicals)
         {
+            // 水下阻尼：仅在状态切换时写入（setLinearDamping/setAngularDamping 是 WASM 跨界调用，
+            // 每帧对全部刚体无条件设置会造成可观的主线程开销）
             const waterDepth = Math.max(- physical.body.translation().y, this.game.water.surfaceElevation)
-            // physical.body.setGravityScale(1 + waterDepth * physical.waterGravityMultiplier)
+            const isDeep = waterDepth > 0
 
-            if(waterDepth > 0)
+            if(isDeep !== physical.isDeep)
             {
-                physical.body.setLinearDamping(1)
-                physical.body.setAngularDamping(1)
-            }
-            else
-            {
-                physical.body.setLinearDamping(physical.linearDamping)
-                physical.body.setAngularDamping(physical.angularDamping)
+                physical.isDeep = isDeep
+
+                if(isDeep)
+                {
+                    physical.body.setLinearDamping(1)
+                    physical.body.setAngularDamping(1)
+                }
+                else
+                {
+                    physical.body.setLinearDamping(physical.linearDamping)
+                    physical.body.setAngularDamping(physical.angularDamping)
+                }
             }
         }
         

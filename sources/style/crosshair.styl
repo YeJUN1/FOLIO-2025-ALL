@@ -1,0 +1,59 @@
+
+.crosshair
+    position fixed
+    top 50%
+    left 50%
+    width 0
+    height 0
+    z-index 5
+    pointer-events none
+    opacity 0
+    transition opacity 0.25s ease
+
+    html.is-pointer-locked &
+        opacity 1
+
+    .line
+        position absolute
+        background #ffffff
+        opacity 0.85
+        box-shadow 0 0 3px rgba(0, 0, 0, 0.35)
+        transition transform 0.15s ease, opacity 0.15s ease
+
+    .is-vertical
+        left -1px
+        width 2px
+        height 7px
+
+        &.is-top
+            bottom 6px
+
+        &.is-bottom
+            top 6px
+
+    .is-horizontal
+        top -1px
+        width 7px
+        height 2px
+
+        &.is-left
+            right 6px
+
+        &.is-right
+            left 6px
+
+    &.is-intersecting
+        .line
+            opacity 1
+
+        .is-vertical.is-top
+            transform translateY(-2px)
+
+        .is-vertical.is-bottom
+            transform translateY(2px)
+
+        .is-horizontal.is-left
+            transform translateX(-2px)
+
+        .is-horizontal.is-right
+            transform translateX(2px)

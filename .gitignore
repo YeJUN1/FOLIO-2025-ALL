@@ -9,3 +9,4 @@ dist
 !static/sounds/music/*.wav
 scripts/hunyuan/state.json
 resources/hunyuan-raw/
+resources/backups/

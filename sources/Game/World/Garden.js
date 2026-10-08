@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu'
+import { color, float, Fn, mix, positionLocal, sin, time, vec3 } from 'three/tsl'
 import { Game } from '../Game.js'
+import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
 
 /**
  * 苏州园林模块（数据驱动拼装）
@@ -12,7 +14,9 @@ export class Garden
     {
         this.game = Game.getInstance()
         this.origin = new THREE.Vector3()
+        this.scale = 1
         this.items = []
+        this.ponds = []
         this.debugVisible = true
 
         this.setFromSceneDescription()
@@ -41,6 +45,9 @@ export class Garden
         const origin = sceneDescription.origin || [ 0, 0, 0 ]
         this.origin.set(origin[0], origin[1], origin[2])
 
+        // 整体缩放（等比放大/缩小整个花园：视觉、碰撞体、相对布局一并缩放，资产本身保持真实尺寸）
+        this.scale = sceneDescription.scale ?? 1
+
         // 按需加载所需资产（复用全局资源加载器与缓存）
         const compressed = !!import.meta.env.VITE_COMPRESSED
         const compressedSuffix = compressed ? '-compressed' : ''
@@ -62,6 +69,13 @@ export class Garden
         for(const objectDescription of sceneDescription.objects)
             this.addItem(objectDescription, resources[objectDescription.asset])
 
+        // 池塘水面（纯视觉：多边形水面 + 池底，不创建物理体，玩家可涉水而过）
+        if(sceneDescription.ponds)
+        {
+            for(const pondDescription of sceneDescription.ponds)
+                this.addPond(pondDescription)
+        }
+
         this.setDebug()
     }
 
@@ -80,9 +94,25 @@ export class Garden
         ))
 
         const scale = _description.scale ?? 1
-        model.scale.copy(typeof scale === 'number' ? new THREE.Vector3(scale, scale, scale) : new THREE.Vector3(...scale))
+        const scaleVector = (typeof scale === 'number' ? new THREE.Vector3(scale, scale, scale) : new THREE.Vector3(...scale)).multiplyScalar(this.scale)
+        model.scale.copy(scaleVector)
         model.quaternion.copy(quaternion)
         model.position.copy(this.getWorldPosition(_description))
+
+        // 碰撞体随整体缩放：Objects.getFromModel 只读取碰撞体子节点的局部 scale/position（不含 model.scale），
+        // 故把缩放烘焙进 cuboid/tube/ball 等「尺寸驱动」的碰撞体节点，保证物理体与视觉一致。
+        // （trimesh/hull 为顶点驱动，暂不支持运行时缩放；当前花园资产仅用 cuboid）
+        if(scaleVector.x !== 1 || scaleVector.y !== 1 || scaleVector.z !== 1)
+        {
+            for(const child of model.children)
+            {
+                if(/^cuboid/i.test(child.name) || /^tube/i.test(child.name) || /^ball/i.test(child.name))
+                {
+                    child.scale.multiply(scaleVector)
+                    child.position.multiply(scaleVector)
+                }
+            }
+        }
 
         // 物理体（GLB 根节点含 physical 命名时自动创建 fixed 刚体，碰撞体来自 cuboid 子节点）
         const object = this.game.objects.addFromModel(
@@ -95,6 +125,12 @@ export class Garden
             }
         )
 
+        // 刷新查询管线：Rapier 仅在 world.step() 时重建查询结构，同一帧内新建的碰撞体
+        // 对 castRay 不可见。不刷新会导致后续资产的贴地射线穿透刚建好的物理体
+        // （如后摆放的物件沉入底座，而非站上台面）。update 只重建空间索引，不推进模拟。
+        if(object.physical)
+            this.game.physics.world.queryPipeline.update(this.game.physics.world.colliders)
+
         this.items.push({
             description: _description,
             model: model,
@@ -102,12 +138,110 @@ export class Garden
         })
     }
 
+    addPond(_description)
+    {
+        const polygon = _description.polygon || []
+        if(polygon.length < 3)
+            return
+
+        const s = this.scale
+        const waterLevel = _description.waterLevel ?? 0.02
+        const bedLevel = _description.bedLevel ?? 0.001
+        const colors = _description.colors ?? {}
+        const opacity = _description.opacity ?? 0.85
+
+        // 以多边形几何中心做一次贴地射线，水面整体对齐台面顶高
+        let centerX = 0
+        let centerZ = 0
+        for(const point of polygon)
+        {
+            centerX += point[0]
+            centerZ += point[1]
+        }
+        centerX = this.origin.x + (centerX / polygon.length) * s
+        centerZ = this.origin.z + (centerZ / polygon.length) * s
+        const groundY = this.getGroundElevation(centerX, centerZ) + this.origin.y
+
+        // Shape 平面为 XY，rotateX(-90°) 后落到 XZ 平面：
+        // 顶点 (px, pz) 写成 (px, -pz)，旋转后几何顶点即为 (px, 0, pz)
+        const shape = new THREE.Shape()
+        for(let i = 0; i < polygon.length; i++)
+        {
+            const x = polygon[i][0]
+            const y = - polygon[i][1]
+
+            if(i === 0)
+                shape.moveTo(x, y)
+            else
+                shape.lineTo(x, y)
+        }
+        shape.closePath()
+
+        const geometry = new THREE.ShapeGeometry(shape)
+        geometry.rotateX(- Math.PI / 2)
+
+        // 池底：深色平面衬出水深
+        const bedMaterial = new MeshDefaultMaterial({
+            colorNode: color(colors.bed ?? '#13282a'),
+            hasWater: false,
+            hasLightBounce: false,
+            hasCoreShadows: false,
+            hasDropShadows: false
+        })
+
+        const bed = new THREE.Mesh(geometry, bedMaterial)
+        bed.scale.set(s, 1, s)
+        bed.position.set(this.origin.x, groundY + bedLevel * s, this.origin.z)
+        bed.receiveShadow = true
+        this.game.scene.add(bed)
+
+        // 水面：深浅色渐变 + 时间驱动波纹
+        const shallowColor = color(colors.shallow ?? '#5a9490')
+        const deepColor = color(colors.deep ?? '#1e4547')
+
+        const colorNode = Fn(() =>
+        {
+            const waveA = sin(positionLocal.x.mul(7.5).add(time.mul(1.2)))
+            const waveB = sin(positionLocal.z.mul(6.2).sub(time.mul(0.9)))
+            const waveC = sin(positionLocal.x.mul(12).add(positionLocal.z.mul(10.5)).add(time.mul(1.6)))
+            const ripple = waveA.mul(waveB).add(waveC.mul(0.5)).mul(0.5).add(0.5).clamp(0, 1)
+
+            return mix(deepColor, shallowColor, ripple.mul(0.6).add(0.05))
+        })()
+
+        const normalNode = vec3(
+            sin(positionLocal.x.mul(9).add(time.mul(1.1))).mul(0.06),
+            1,
+            sin(positionLocal.z.mul(8).sub(time.mul(0.8))).mul(0.06)
+        ).normalize()
+
+        const waterMaterial = new MeshDefaultMaterial({
+            colorNode: colorNode,
+            normalNode: normalNode,
+            alphaNode: float(opacity),
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            hasWater: false,
+            hasLightBounce: false
+        })
+
+        const water = new THREE.Mesh(geometry, waterMaterial)
+        water.scale.set(s, 1, s)
+        water.position.set(this.origin.x, groundY + waterLevel * s, this.origin.z)
+        water.receiveShadow = true
+        water.renderOrder = 1
+        this.game.scene.add(water)
+
+        this.ponds.push({ description: _description, water: water, bed: bed })
+    }
+
     getWorldPosition(_description)
     {
         const position = _description.position || [ 0, 0, 0 ]
-        const x = this.origin.x + position[0]
-        const z = this.origin.z + position[2]
-        const y = this.getGroundElevation(x, z) + position[1] + this.origin.y
+        const x = this.origin.x + position[0] * this.scale
+        const z = this.origin.z + position[2] * this.scale
+        const y = this.getGroundElevation(x, z) + position[1] * this.scale + this.origin.y
 
         return new THREE.Vector3(x, y, z)
     }
@@ -152,6 +286,12 @@ export class Garden
         {
             for(const item of this.items)
                 item.model.visible = this.debugVisible
+
+            for(const pond of this.ponds)
+            {
+                pond.water.visible = this.debugVisible
+                pond.bed.visible = this.debugVisible
+            }
         })
 
         const originProxy = { x: this.origin.x, z: this.origin.z }

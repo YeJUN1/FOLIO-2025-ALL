@@ -4,13 +4,16 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { Logger, NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS, KHRDracoMeshCompression } from '@gltf-transform/extensions'
-import { clearNodeParent, clearNodeTransform, dedup, getBounds, prune, transformMesh } from '@gltf-transform/functions'
+import { clearNodeTransform, compressTexture, dedup, getBounds, prune, simplify, transformMesh, weld } from '@gltf-transform/functions'
 import draco3d from 'draco3dgltf'
+import { MeshoptSimplifier } from 'meshoptimizer'
+import sharp from 'sharp'
 
 /**
  * 规范化后处理：resources/hunyuan-raw/<key>.glb → static/garden/<key>.glb
  * 步骤：清理 → 压平层级(顶点化) → 尺寸归一(manifest.normalize) → 旋转修正(rotationFix)
- *      → Pivot 归零(底面中心=原点) → 注入物理碰撞体(collider=cuboid 时)
+ *      → Pivot 归零(底面中心=原点) → 减面(meshoptimizer) → 贴图压缩(sharp)
+ *      → 注入物理碰撞体(collider=cuboid 时) → 材质唯一命名
  * 用法:
  *   node scripts/hunyuan/process.js                # 处理所有存在原始文件的资产
  *   node scripts/hunyuan/process.js --only key1,key2
@@ -33,6 +36,18 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'
 const rawDirectory = path.join(projectRoot, 'resources', 'hunyuan-raw')
 const outputDirectory = path.join(projectRoot, 'static', 'garden')
 const gltfTransformBin = path.join(projectRoot, 'node_modules', '.bin', 'gltf-transform')
+
+// 减面默认参数（可被 manifest.defaults.simplify 或资产级 simplify 覆盖，资产级 simplify:false 可禁用）：
+// 混元高模约 50 万三角形/件，实时渲染时主画面 + 阴影贴图两份顶点吞吐是最大性能瓶颈。
+// ratio 为目标保留比例；error 为相对模型半径的误差上限（过大可见形变，过小减不下去）。
+const defaultSimplify = { ratio: 0.05, error: 0.002 }
+
+// 贴图压缩默认参数（可被 manifest.defaults.texture 或资产级 texture 覆盖，资产级 texture:false 可禁用）：
+// 混元原贴图 4096×4096 PNG（3 张约 31MB/资产，解码后 192MB 显存），远超游戏内观看需要。
+// 限制最大边长并转 JPEG（有 alpha 通道的保留 PNG），大幅降低加载体积与显存占用。
+const defaultTexture = { resize: [ 1024, 1024 ], quality: 85 }
+
+await MeshoptSimplifier.ready
 
 const io = new NodeIO()
     .setLogger(new Logger(Logger.Verbosity.WARN))
@@ -143,6 +158,23 @@ function formatSize(_bytes)
     return _bytes >= 1024 * 1024 ? `${(_bytes / 1024 / 1024).toFixed(1)} MB` : `${(_bytes / 1024).toFixed(1)} KB`
 }
 
+function countTriangles(_document)
+{
+    let count = 0
+    for(const mesh of _document.getRoot().listMeshes())
+    {
+        for(const primitive of mesh.listPrimitives())
+        {
+            const indices = primitive.getIndices()
+            if(indices)
+                count += indices.getCount() / 3
+            else
+                count += primitive.getAttribute('POSITION').getCount() / 3
+        }
+    }
+    return Math.round(count)
+}
+
 async function processAsset(asset)
 {
     const input = path.join(rawDirectory, `${asset.key}.glb`)
@@ -206,18 +238,66 @@ async function processAsset(asset)
     for(const mesh of meshes)
         transformMesh(mesh, matrix)
 
-    // 4. 最终包围盒
+    // 3.5 减面：归一化后按目标比例简化，weld 先合并拆分顶点提高简化质量
+    const simplifySettings = asset.simplify === false
+        ? null
+        : { ...defaultSimplify, ...(manifest.defaults.simplify || {}), ...(typeof asset.simplify === 'object' ? asset.simplify : {}) }
+
+    const trianglesBefore = countTriangles(doc)
+    let trianglesAfter = trianglesBefore
+
+    if(simplifySettings)
+    {
+        await doc.transform(
+            weld({ tolerance: 0.0001 }),
+            simplify({
+                simplifier: MeshoptSimplifier,
+                ratio: simplifySettings.ratio,
+                error: simplifySettings.error,
+                lockBorder: false
+            })
+        )
+        trianglesAfter = countTriangles(doc)
+    }
+
+    // 3.6 贴图压缩：限制最大边长 + 无 alpha 转 JPEG（有 alpha 保留 PNG）
+    const textureSettings = asset.texture === false
+        ? null
+        : { ...defaultTexture, ...(manifest.defaults.texture || {}), ...(typeof asset.texture === 'object' ? asset.texture : {}) }
+
+    let textureBytesBefore = 0
+    let textureBytesAfter = 0
+
+    if(textureSettings)
+    {
+        for(const texture of doc.getRoot().listTextures())
+        {
+            const image = texture.getImage()
+            if(!image)
+                continue
+
+            textureBytesBefore += image.byteLength
+            const metadata = await sharp(Buffer.from(image)).metadata()
+            await compressTexture(texture, {
+                encoder: sharp,
+                targetFormat: metadata.hasAlpha ? 'png' : 'jpeg',
+                resize: textureSettings.resize,
+                quality: textureSettings.quality
+            })
+            textureBytesAfter += texture.getImage().byteLength
+        }
+    }
+
+    // 4. 最终包围盒（减面后顶点略有变化，重新计算保证碰撞体贴合）
     const finalBounds = getBounds(scene)
     const finalSize = getSize(finalBounds)
 
-    // 5. 包装根节点 + 注入碰撞体
-    const wrapper = doc.createNode(`${asset.key}${asset.collider === 'cuboid' ? ' physical fixed' : ''}`)
-    for(const child of [ ...scene.listChildren() ])
-    {
-        clearNodeParent(child)
-        wrapper.addChild(child)
-    }
-    scene.addChild(wrapper)
+    // 5. 场景根命名 + 注入碰撞体
+    // THREE 的 gltf.scene 名称取自 glTF 场景名（而非根节点名）：游戏侧 Objects.getFromModel
+    // 依据该名称含 "physical" 创建 fixed 刚体，且只扫描模型的直接子节点收集 cuboid 碰撞体。
+    // 故把场景本身命名为 "<key> physical fixed"，碰撞体挂为场景的直接子节点
+    // （层级已全部烘焙进顶点，无需包装节点）。
+    scene.setName(`${asset.key}${asset.collider === 'cuboid' ? ' physical fixed' : ''}`)
 
     if(asset.collider === 'cuboid')
     {
@@ -228,8 +308,17 @@ async function processAsset(asset)
             Math.max(finalSize[1], 0.02),
             Math.max(finalSize[2], 0.02)
         ])
-        wrapper.addChild(colliderNode)
+        scene.addChild(colliderNode)
     }
+
+    // 5.5 材质唯一命名
+    // 游戏 Materials.getFromName 按材质名作转换缓存键（同名跨对象共享，给同资产克隆体复用）；
+    // 混元导出默认名（如 Material.001）会在不同资产间撞名，导致贴图/材质串用，必须改为全局唯一。
+    const materials = doc.getRoot().listMaterials()
+    materials.forEach((material, index) =>
+    {
+        material.setName(materials.length > 1 ? `${asset.key}_${index}` : asset.key)
+    })
 
     // 6. 导出（读取时注册过 draco 扩展会导致写回自动保留压缩，
     //    这里移除它使普通版保持未压缩，-compressed 版由 CLI 重新压缩）
@@ -250,7 +339,9 @@ async function processAsset(asset)
     if(Math.abs((finalBounds.min[0] + finalBounds.max[0]) / 2) > 0.01 || Math.abs((finalBounds.min[2] + finalBounds.max[2]) / 2) > 0.01)
         issues.push('中心未归零')
 
-    console.log(`✔ ${asset.key} → ${path.relative(projectRoot, output)} | 尺寸 ${finalSize.map(round3).join(' × ')} m | 缩放 x${round3(scale)} | 碰撞体 ${asset.collider || 'none'}`)
+    const reduction = simplifySettings ? ` | 面数 ${trianglesBefore.toLocaleString()} → ${trianglesAfter.toLocaleString()} (x${round3(trianglesAfter / trianglesBefore)})` : ''
+    const textureReduction = textureBytesBefore > 0 ? ` | 贴图 ${formatSize(textureBytesBefore)} → ${formatSize(textureBytesAfter)}` : ''
+    console.log(`✔ ${asset.key} → ${path.relative(projectRoot, output)} | 尺寸 ${finalSize.map(round3).join(' × ')} m | 缩放 x${round3(scale)} | 碰撞体 ${asset.collider || 'none'}${reduction}${textureReduction}`)
     if(issues.length)
         console.log(`  ⚠ ${asset.key}: ${issues.join('；')}（可用 rotationFix/normalize 调整）`)
 

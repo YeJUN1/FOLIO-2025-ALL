@@ -7,7 +7,10 @@ export class Viewport
         this.domElement = domElement
 
         this.events = new Events()
-        
+
+        // 运行时自适应像素比上限（由 Rendering.setAdaptiveResolution 控制，null = 未干预）
+        this.pixelRatioAdaptive = null
+
         this.measure()
         this.setResize()
     }
@@ -21,8 +24,18 @@ export class Viewport
         this.ratio = this.width / this.height
 
         this.pixelRatioPure = window.devicePixelRatio
-        this.pixelRatioMax = 2
-        this.pixelRatio = Math.min(this.pixelRatioPure, this.pixelRatioMax)
+        this.pixelRatioMax = 1.5
+        this.applyPixelRatio()
+    }
+
+    applyPixelRatio()
+    {
+        let pixelRatio = Math.min(this.pixelRatioPure, this.pixelRatioMax)
+
+        if(this.pixelRatioAdaptive !== null)
+            pixelRatio = Math.min(pixelRatio, this.pixelRatioAdaptive)
+
+        this.pixelRatio = pixelRatio
     }
 
     setResize()

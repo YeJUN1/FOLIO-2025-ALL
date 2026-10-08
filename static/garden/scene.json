@@ -2,13 +2,95 @@
     "_help": [
         "花园布局唯一数据源：新增模块 = manifest.json 写一条 + 这里写一条，无需改代码。",
         "origin: 世界坐标锚点 [x,y,z]（y 仅在射线落空时作为地面兜底）。",
-        "objects[].asset: manifest 中的 key；position: 相对 origin 的偏移(米，y=离地高度)；",
-        "rotation: 欧拉角 [rx,ry,rz]（单位：度）；scale: 可选，注意缩放会与物理碰撞体尺寸不一致，建议保持 1。"
+        "scale: 可选，整体等比缩放（默认 1）。会同时作用于视觉、物理碰撞体与 objects[].position 的相对偏移，资产 GLB 本身保持真实尺寸。",
+        "objects[].asset: manifest 中的 key；position: 相对 origin 的偏移(米，会乘以顶层 scale；y=离地高度)；",
+        "rotation: 欧拉角 [rx,ry,rz]（单位：度）；scale: 可选，与顶层 scale 相乘（已同步作用于碰撞体）。",
+        "物体按数组顺序创建物理体：先建可被后建资产的贴地射线命中，如 gardenBase 排首位，后续物品自动站上台面。",
+        "ponds: 纯视觉水面（无物理体）。polygon 为本地 XZ 多边形顶点（会乘顶层 scale），waterLevel/bedLevel 为相对台面高度(米)。"
     ],
     "origin": [29, 0, -45],
+    "scale": 5,
     "objects": [
-        { "asset": "moonGate",  "position": [-2.5, 0, 1.5],  "rotation": [0, 90, 0] },
-        { "asset": "taihuRock", "position": [0.5, 0, 0],     "rotation": [0, 37, 0] },
-        { "asset": "pavilion",  "position": [2.5, 0, -1.5],  "rotation": [0, -45, 0] }
+        { "asset": "gardenBase", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1.6, 1, 1.6] },
+
+        { "asset": "wallWindow", "position": [-5.0, 0, -6.15], "rotation": [0, 0, 0] },
+        { "asset": "wall",       "position": [-1.7, 0, -6.15], "rotation": [0, 90, 0] },
+        { "asset": "wallWindow", "position": [1.5, 0, -6.15],  "rotation": [0, 0, 0] },
+        { "asset": "wall",       "position": [4.8, 0, -6.15],  "rotation": [0, 90, 0] },
+
+        { "asset": "moonGate",   "position": [-6.1, 0, 1.5],   "rotation": [0, 90, 0] },
+
+        { "asset": "corridor",       "position": [-2.9, 0, 5.2], "rotation": [0, 90, 0], "scale": [1, 1, 0.855] },
+        { "asset": "corridorCorner", "position": [4.0, 0, 4.0],  "rotation": [0, -90, 0] },
+
+        { "asset": "pavilion",   "position": [2.6, 0, -0.9],  "rotation": [0, -20, 0] },
+        { "asset": "taihuRock",  "position": [-2.2, 0, -2.2], "rotation": [0, 40, 0] },
+        { "asset": "stoneBankA", "position": [-4.4, 0, -5.6], "rotation": [0, 120, 0] },
+        { "asset": "stoneBankB", "position": [-3.5, 0, 1.3],  "rotation": [0, 200, 0] },
+
+        { "asset": "bambooA", "position": [-5.3, 0, -5.2], "rotation": [0, 15, 0],  "scale": 1.0 },
+        { "asset": "bambooA", "position": [-4.6, 0, -4.1], "rotation": [0, 130, 0], "scale": 0.9 },
+        { "asset": "bambooA", "position": [-5.5, 0, -3.0], "rotation": [0, 75, 0],  "scale": 1.1 },
+        { "asset": "bambooA", "position": [-4.5, 0, -1.9], "rotation": [0, 200, 0], "scale": 0.85 },
+        { "asset": "bambooA", "position": [-5.6, 0, -0.9], "rotation": [0, 310, 0], "scale": 1.05 },
+        { "asset": "bambooA", "position": [-4.8, 0, 0.1],  "rotation": [0, 45, 0],  "scale": 0.95 },
+        { "asset": "bambooA", "position": [-5.85, 0, 0.5], "rotation": [0, 250, 0], "scale": 1.0 },
+
+        { "asset": "pineTreeA", "position": [4.2, 0, -4.6], "rotation": [0, 160, 0] },
+        { "asset": "pineTreeA", "position": [1.3, 0, -4.6], "rotation": [0, 75, 0], "scale": 0.9 },
+        { "asset": "plumTreeA", "position": [-4.3, 0, -2.0], "rotation": [0, 220, 0] },
+        { "asset": "plumTreeA", "position": [5.2, 0, -1.6],  "rotation": [0, 100, 0] },
+
+        { "asset": "stoneBridge", "position": [0.75, 0, 1.9], "rotation": [0, 90, 0] },
+
+        { "asset": "stoneTable", "position": [-4.5, 0, 3.2], "rotation": [0, 0, 0] },
+        { "asset": "stoneStool", "position": [-5.35, 0, 3.2], "rotation": [0, 35, 0] },
+        { "asset": "stoneStool", "position": [-3.65, 0, 3.2], "rotation": [0, 120, 0] },
+        { "asset": "stoneStool", "position": [-4.5, 0, 3.95], "rotation": [0, 260, 0] },
+        { "asset": "stoneStool", "position": [-4.5, 0, 2.45], "rotation": [0, 75, 0] },
+
+        { "asset": "lantern", "position": [1.1, 0, 3.6],  "rotation": [0, 0, 0] },
+        { "asset": "lantern", "position": [-5.3, 0, 1.9], "rotation": [0, 0, 0] },
+        { "asset": "lantern", "position": [-0.5, 0, 3.9], "rotation": [0, 0, 0] },
+
+        { "asset": "flowerPot", "position": [3.7, 0, 0.2],   "rotation": [0, 20, 0] },
+        { "asset": "flowerPot", "position": [-1.0, 0, -1.8], "rotation": [0, 200, 0] },
+
+        { "asset": "slabA", "position": [-5.0, 0, 2.6],  "rotation": [0, 25, 0] },
+        { "asset": "slabA", "position": [-2.9, 0, 3.6],   "rotation": [0, 5, 0] },
+        { "asset": "slabA", "position": [-3.9, 0, 2.7],  "rotation": [0, -30, 0] },
+        { "asset": "slabA", "position": [0.75, 0, 0.3],  "rotation": [0, 5, 0] },
+        { "asset": "slabA", "position": [0.75, 0, 3.3],  "rotation": [0, -8, 0] },
+        { "asset": "slabA", "position": [3.9, 0, 0.6],   "rotation": [0, 15, 0] },
+        { "asset": "slabA", "position": [-2.2, 0, -1.0], "rotation": [0, 45, 0] },
+        { "asset": "slabA", "position": [-4.6, 0, -3.2], "rotation": [0, 10, 0] },
+        { "asset": "slabA", "position": [-4.7, 0, -2.2], "rotation": [0, -25, 0] },
+        { "asset": "slabA", "position": [5.6, 0, 0.8],    "rotation": [0, 40, 0] },
+
+        { "asset": "lotus",     "position": [0.0, 0, 2.3],  "rotation": [0, 0, 0] },
+        { "asset": "lotus",     "position": [-1.2, 0, 1.7], "rotation": [0, 140, 0] },
+        { "asset": "lotusLeaf", "position": [0.2, 0, 1.5],  "rotation": [0, 30, 0] },
+        { "asset": "lotusLeaf", "position": [-0.2, 0, 2.2], "rotation": [0, 80, 0] },
+        { "asset": "lotusLeaf", "position": [-2.0, 0, 1.6], "rotation": [0, 150, 0] },
+        { "asset": "lotusLeaf", "position": [-1.0, 0, 1.1], "rotation": [0, 260, 0] }
+    ],
+    "ponds": [
+        {
+            "polygon": [
+                [-3.05, 1.1], [-2.75, 0.66], [-1.4, 0.56], [-0.3, 0.8],
+                [0.3, 1.42], [1.3, 1.0], [2.3, 0.82], [3.1, 1.15],
+                [3.45, 1.9], [3.05, 2.55], [2.1, 2.82], [1.25, 2.62],
+                [0.55, 2.35], [-0.1, 2.6], [-1.1, 2.85], [-2.2, 2.88],
+                [-2.95, 2.5], [-3.35, 1.9]
+            ],
+            "waterLevel": 0.025,
+            "bedLevel": 0.002,
+            "opacity": 0.85,
+            "colors": {
+                "shallow": "#5a9490",
+                "deep": "#1e4547",
+                "bed": "#13282a"
+            }
+        }
     ]
 }

@@ -23,6 +23,7 @@ export class Rendering
     start()
     {
         this.setStats()
+        this.setAdaptiveResolution()
 
         this.game.ticker.events.on('tick', () =>
         {
@@ -166,6 +167,38 @@ export class Rendering
     {
         this.renderer.setSize(this.game.viewport.width, this.game.viewport.height)
         this.renderer.setPixelRatio(this.game.viewport.pixelRatio)
+    }
+
+    setAdaptiveResolution()
+    {
+        // 帧率自适应分辨率：平均帧时长超过 1/45s（<45fps）时逐级下调像素比（步进 0.25，
+        // 下限 1），回升至平稳（>57fps）后逐级恢复；每次调整后 3 秒冷却防振荡。
+        // 用途：外接高分屏 / 性能波动时自动保流畅；稳定 60fps 时永不触发。
+        this.adaptiveLastChange = 0
+
+        this.game.ticker.events.on('tick', () =>
+        {
+            const elapsed = this.game.ticker.elapsedScaled
+
+            // 启动加载阶段帧率不稳定，跳过；冷却期内不重复调整
+            if(elapsed < 15 || elapsed - this.adaptiveLastChange < 3)
+                return
+
+            const viewport = this.game.viewport
+            const current = viewport.pixelRatioAdaptive === null ? viewport.pixelRatioMax : viewport.pixelRatioAdaptive
+            const deltaAverage = this.game.ticker.deltaAverage
+
+            if(deltaAverage > 1 / 45 && current > 1)
+                viewport.pixelRatioAdaptive = Math.max(1, current - 0.25)
+            else if(deltaAverage < 1 / 57 && current < viewport.pixelRatioMax)
+                viewport.pixelRatioAdaptive = Math.min(viewport.pixelRatioMax, current + 0.25)
+            else
+                return
+
+            this.adaptiveLastChange = elapsed
+            viewport.applyPixelRatio()
+            viewport.events.trigger('change')
+        }, 999)
     }
 
     async render()

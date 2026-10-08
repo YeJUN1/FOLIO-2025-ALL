@@ -1,0 +1,28 @@
+{
+    "_help": [
+        "官网网页版生成批次追踪：每个 manifest key 对应一个混元3D官网 creationsId。",
+        "用途：通过 /api/3d/creations/detail?creationsId=xxx 拉取 4 候选的 urlResult（glb 直链 + image_url 预览），",
+        "选形后下载 glb 直链入库 resources/hunyuan-raw/<key>.glb，chosen 记录最终采用的候选。",
+        "官方通道每次生成 1 积分、产出 4 候选。"
+    ],
+    "batches": [
+        { "key": "wallWindow", "creationsId": "e89f3d6d-6953-469f-b6a1-5f61697b1df6", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "8b8a0f3f-fb8e-4de2-9829-5dd668e6681e", "index": 1, "note": "直段白墙+八角漏窗梅花纹+黛瓦檐" }, "downloaded": true },
+        { "key": "wall", "creationsId": "52334fe5-0271-42c9-96ee-1db2fb86de3a", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "4d58737a-1150-412a-9bed-9d2ae3c92b1c", "index": 0, "note": "直段白墙+黛瓦檐+青砖墙裙，墙裙比例最佳" }, "downloaded": true },
+        { "key": "corridor", "creationsId": "791c6b06-c81d-472d-a5d3-04c9e686f463", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "d0ceca19-8bff-4e3e-be5b-bc4fc719e0a8", "index": 0, "note": "双面通透空廊+歇山顶+台基" }, "downloaded": true },
+        { "key": "corridorCorner", "creationsId": "bc2c0354-4fa0-48d3-89fc-59da50b1876b", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "bed261e1-9c2c-49b5-9148-57f3e27b92f2", "index": 0, "note": "L型直角转角廊+台基" }, "downloaded": true },
+        { "key": "bambooA", "creationsId": "027809a1-7928-46c0-980d-a514efbd5e26", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "0f2c6de7-e379-4ed9-be6f-244fe27e4dce", "index": 1, "note": "地栽竹丛带叶（叶片略漂浮，远景可用），其余候选为盆栽竹不可用" }, "downloaded": true },
+        { "key": "bambooB", "creationsId": "8d2b72cf-ee09-4dd3-b213-29f70681cb93", "style": "中国风", "submittedAt": "2026-10-04", "chosen": null, "rejected": true, "rejectNote": "4候选全部不合格：树冠悬浮/平面贴图缺陷，放弃该批次；竹林用 bambooA 拼放实现" },
+        { "key": "pineTreeA", "creationsId": "6ef98bf4-839b-4223-bb51-8a62d52fe5bc", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "cbe2b029-8c0c-4fb3-a2ca-b932dd4b1323", "index": 1, "note": "地栽造型松，云片层次分明，底座小草皮" }, "downloaded": true },
+        { "key": "plumTreeA", "creationsId": "2a3d3095-060b-49ae-99b8-b37cb2431ab6", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "95f5701c-4dd9-44ca-93bf-0224a36cd7df", "index": 3, "note": "地栽老梅树，树干虬曲花朵饱满，八角草皮底座" }, "downloaded": true },
+        { "key": "stoneBridge", "creationsId": "c46a7799-5229-42d5-8514-e71e9fcf665c", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "f9794b88-4ad7-4dfb-a167-7e1580b7d615", "index": 0, "note": "对称单孔石拱桥，云纹装饰，拱洞圆润" }, "downloaded": true },
+        { "key": "stoneTable", "creationsId": "f0cf6169-9439-48ba-b0af-9a764dba18e4", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "a2b60d41-6054-4e93-a80b-5154f6e6aa98", "index": 0, "note": "圆石桌，回纹雕饰，八边形底座" }, "downloaded": true },
+        { "key": "stoneBankA", "creationsId": "73725e29-ee66-4648-8c3c-84dfc53baca9", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "7db937c8-bc9d-4919-9e75-1d112b6476f4", "index": 1, "note": "实际生成高瘦直立湖石（非扁平岸石），改作湖畔立石用" }, "downloaded": true },
+        { "key": "stoneBankB", "creationsId": "ea913324-d634-4a71-83ec-8b0bae6fa72f", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "cd42d4e5-39bd-414e-be5e-b0cf5f4022c6", "index": 0, "note": "实际生成高瘦直立湖石（瘦皱漏透明显），改作湖畔立石用" }, "downloaded": true },
+        { "key": "slabA", "creationsId": "db06fff1-fb6a-4d73-a3f0-b4991295f668", "style": "通用", "submittedAt": "2026-10-04", "chosen": { "assetId": "5c201992-5bce-4382-8a56-ee86d99a0ec4", "index": 0, "note": "方形石板，冰裂纹顶面+自然边缘" }, "downloaded": true },
+        { "key": "stoneStool", "creationsId": "e633ca97-a54a-4e56-837a-7f4f27624b4b", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "2b600ae7-4aa5-4289-986f-d65148ecced6", "index": 0, "note": "鼓形石凳，双珠链条+如意纹浮雕" }, "downloaded": true },
+        { "key": "lantern", "creationsId": "710b3dcb-55ed-4920-92e7-8d16cd56b6ab", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "b6c9e1e0-8c99-4707-b714-cbb206735792", "index": 1, "note": "石灯笼，形体挺拔，灯室镂空精细，檐口翘角优美" }, "downloaded": true },
+        { "key": "lotus", "creationsId": "f6d19e60-8a02-4a42-9103-e59dca51b1b6", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "ebef5710-532a-4887-979a-4ef6575bcc13", "index": 3, "note": "荷花+大型荷叶底座组合，花朵正立饱满" }, "downloaded": true },
+        { "key": "lotusLeaf", "creationsId": "677782e6-c171-41ed-acb2-1299fd95f100", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "d54a4946-b5dd-4489-b7ad-4df36ed76585", "index": 3, "note": "圆形荷叶，最大最舒展带金边" }, "downloaded": true },
+        { "key": "flowerPot", "creationsId": "630efd0c-5032-4aa7-82ce-153d14501418", "style": "通用", "submittedAt": "2026-10-04", "chosen": { "assetId": "f104d35d-b2b6-4232-8eab-63721b1710ad", "index": 0, "note": "青瓷花盆，兽足底座+回纹装饰" }, "downloaded": true }
+    ]
+}

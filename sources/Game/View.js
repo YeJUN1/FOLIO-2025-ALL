@@ -62,6 +62,7 @@ export class View
         this.setCinematic()
         this.setSpeedLines()
         this.setMapControls()
+        this.setMouseLook()
 
         this.game.ticker.events.on('tick', () =>
         {
@@ -105,6 +106,10 @@ export class View
     setMode(mode)
     {
         this.mode = mode
+
+        // Leaving default mode => Release the pointer
+        if(mode !== View.MODE_DEFAULT && this.mouseLook && this.mouseLook.isLocked)
+            document.exitPointerLock()
 
         this.focusPoint.smoothedPosition.copy(this.focusPoint.position)
 
@@ -594,8 +599,8 @@ export class View
                 // Focus point
                 if(action.active)
                 {
-                    // Map
-                    if(this.game.inputs.pointer.mode === Pointer.MODE_MOUSE || this.game.inputs.pointer.touches.length >= 2)
+                    // Map (Not while mouse looking)
+                    if((this.game.inputs.pointer.mode === Pointer.MODE_MOUSE && !this.mouseLook?.isLocked && !this.mouseLook?.dragActive) || this.game.inputs.pointer.touches.length >= 2)
                     {
                         this.focusPoint.isTracking = false
                         
@@ -617,8 +622,208 @@ export class View
         })
     }
 
+    setMouseLook()
+    {
+        this.mouseLook = {}
+        this.mouseLook.sensitivity = 0.0025
+        this.mouseLook.phiEdges = { min: Math.PI * 0.04, max: Math.PI * 0.47 }
+        this.mouseLook.isLocked = false
+        this.mouseLook.isLockAvailable = null
+        this.mouseLook.dragActive = false
+        this.mouseLook.isIntersecting = false
+        this.mouseLook.crosshairElement = document.querySelector('.js-crosshair')
+        this.mouseLook.clickPosition = { x: 0, y: 0 }
+
+        const isMouseLookAllowed = () =>
+        {
+            if(this.mode !== View.MODE_DEFAULT)
+                return false
+
+            if(this.game.inputs.mode !== Inputs.MODE_MOUSEKEYBOARD)
+                return false
+
+            if(this.cinematic.active)
+                return false
+
+            // Interactive point => Regular interaction
+            if(this.game.rayCursor.currentIntersect)
+                return false
+
+            // Only while playing
+            if(
+                !this.game.inputs.filters.has('wandering') &&
+                !this.game.inputs.filters.has('walking') &&
+                !this.game.inputs.filters.has('racing')
+            )
+                return false
+
+            return true
+        }
+
+        // Quick click => Lock the pointer
+        this.game.canvasElement.addEventListener('mousedown', (_event) =>
+        {
+            this.mouseLook.clickPosition.x = _event.clientX
+            this.mouseLook.clickPosition.y = _event.clientY
+
+            // Pointer lock unavailable => Drag to rotate the view
+            if(_event.button !== 0)
+                return
+
+            if(this.mouseLook.isLockAvailable !== false)
+                return
+
+            if(!isMouseLookAllowed())
+                return
+
+            this.mouseLook.dragActive = true
+        })
+
+        // Release outside of the canvas still ends the drag
+        window.addEventListener('mouseup', () =>
+        {
+            this.mouseLook.dragActive = false
+        })
+
+        window.addEventListener('blur', () =>
+        {
+            this.mouseLook.dragActive = false
+        })
+
+        this.game.canvasElement.addEventListener('mouseup', (_event) =>
+        {
+            this.mouseLook.dragActive = false
+
+            if(_event.button !== 0)
+                return
+
+            if(document.pointerLockElement)
+                return
+
+            // Dragged => Map movement, not mouse look
+            const clickDistance = Math.hypot(_event.clientX - this.mouseLook.clickPosition.x, _event.clientY - this.mouseLook.clickPosition.y)
+
+            if(clickDistance > 8)
+                return
+
+            if(!isMouseLookAllowed())
+                return
+
+            try
+            {
+                const pointerLockPromise = this.game.canvasElement.requestPointerLock({ unadjustedMovement: true })
+
+                if(pointerLockPromise && pointerLockPromise.catch)
+                {
+                    pointerLockPromise.catch(() =>
+                    {
+                        // Raw input not supported => Default pointer lock
+                        const fallbackPointerLockPromise = this.game.canvasElement.requestPointerLock()
+
+                        if(fallbackPointerLockPromise && fallbackPointerLockPromise.catch)
+                        {
+                            fallbackPointerLockPromise.catch(() =>
+                            {
+                                this.mouseLook.isLockAvailable = false
+                            })
+                        }
+                    })
+                }
+            }
+            catch(_error)
+            {
+                this.mouseLook.isLockAvailable = false
+            }
+        })
+
+        // Pointer lock state
+        document.addEventListener('pointerlockchange', () =>
+        {
+            const isLocked = document.pointerLockElement === this.game.canvasElement
+
+            if(isLocked === this.mouseLook.isLocked)
+                return
+
+            this.mouseLook.isLocked = isLocked
+
+            if(isLocked)
+            {
+                this.mouseLook.isLockAvailable = true
+                this.mouseLook.dragActive = false
+                document.documentElement.classList.add('is-pointer-locked')
+            }
+            else
+            {
+                document.documentElement.classList.remove('is-pointer-locked')
+                this.mouseLook.crosshairElement?.classList.remove('is-intersecting')
+                this.mouseLook.isIntersecting = false
+            }
+        })
+
+        // Pointer lock unavailable => Fallback to drag
+        document.addEventListener('pointerlockerror', () =>
+        {
+            this.mouseLook.isLockAvailable = false
+        })
+
+        // Mouse movement => Rotate the view
+        document.addEventListener('mousemove', (_event) =>
+        {
+            if((!this.mouseLook.isLocked && !this.mouseLook.dragActive) || this.mode !== View.MODE_DEFAULT)
+                return
+
+            // Yaw
+            this.spherical.theta -= _event.movementX * this.mouseLook.sensitivity
+
+            const loop = Math.PI * 2
+            this.spherical.theta = ((this.spherical.theta + Math.PI) % loop + loop) % loop - Math.PI
+
+            // Pitch
+            this.spherical.phi -= _event.movementY * this.mouseLook.sensitivity
+            this.spherical.phi = clamp(this.spherical.phi, this.mouseLook.phiEdges.min, this.mouseLook.phiEdges.max)
+        })
+
+        // UI takes over => Release the pointer
+        const exitMouseLook = () =>
+        {
+            if(this.mouseLook.isLocked)
+                document.exitPointerLock()
+        }
+
+        this.game.ticker.wait(1, () =>
+        {
+            this.game.modals.events.on('open', exitMouseLook)
+            this.game.menu.events.on('open', exitMouseLook)
+        })
+
+        if(this.game.debug.active)
+        {
+            const mouseLookDebugPanel = this.debugPanel.addFolder({
+                title: 'Mouse look',
+                expanded: false,
+            })
+            mouseLookDebugPanel.addBinding(this.mouseLook, 'sensitivity', { min: 0, max: 0.02, step: 0.0001 })
+            mouseLookDebugPanel.addBinding(this.mouseLook.phiEdges, 'min', { min: 0, max: Math.PI * 0.5, step: 0.001, label: 'phiMin' })
+            mouseLookDebugPanel.addBinding(this.mouseLook.phiEdges, 'max', { min: 0, max: Math.PI * 0.5, step: 0.001, label: 'phiMax' })
+        }
+    }
+
     update()
     {
+        // Mouse look
+        if(this.mouseLook.isLocked && this.mode === View.MODE_DEFAULT)
+        {
+            this.game.rayCursor.testIntersects('change')
+
+            const isIntersecting = this.game.rayCursor.intersects.some((intersect) => intersect.active && intersect.isIntersecting)
+
+            if(isIntersecting !== this.mouseLook.isIntersecting)
+            {
+                this.mouseLook.isIntersecting = isIntersecting
+                this.mouseLook.crosshairElement?.classList.toggle('is-intersecting', isIntersecting)
+            }
+        }
+        
         // Gamepad Joystick map controls
         if(this.mode === View.MODE_DEFAULT && this.game.inputs.gamepad.joysticks.right.active && !this.cinematic.active)
         {
