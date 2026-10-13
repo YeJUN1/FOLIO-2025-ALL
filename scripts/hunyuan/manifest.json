@@ -108,6 +108,16 @@
             "collider": "cuboid"
         },
         {
+            "key": "stoneFence",
+            "name": "石栏板围栏",
+            "enabled": false,
+            "prompt": "中国苏州古典园林青石围栏模块，独立建筑构件，长2米、高0.9米、厚0.18米，青灰色花岗岩石栏板，栏板中部为回纹镂空装饰，两端各设一根方形矮望柱，柱头圆雕云纹，底部平整便于首尾无缝拼接，完整独立物体，无背景，无地面，无其他景物，真实比例，适合电子游戏环境资产",
+            "normalize": { "axis": "x", "target": 2.0 },
+            "rotationFix": [0, 0, 0],
+            "collider": "cuboid",
+            "notes": "2026-10-12 官网网页版生成（V3.1）：creationsId 48214a92-7759-4dcd-85fa-84cfd1eb782d，选候选 index 4（两端各一根方形矮望柱 + 双跨回纹镂空栏板，两端齐平）；原始朝向已是 Y-up，长度轴为局部 X，故按 x 轴归一化到 2m，供领地边界逐段拼接"
+        },
+        {
             "key": "woodenPillar",
             "name": "木柱",
             "enabled": false,

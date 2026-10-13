@@ -311,10 +311,16 @@ export class Physics
                 
                 const bodyPosition = (position1.x === 0 && position1.y === 0 && position1.z === 0) ? position2 : position1
 
+                // #region debug-point F2:other-object-name
+                let _name1 = '', _name2 = ''
+                try { _name1 = body1.userData?.object?.visual?.object3D?.name || body1.userData?.object?.name || '' } catch(e) {}
+                try { _name2 = body2.userData?.object?.visual?.object3D?.name || body2.userData?.object?.name || '' } catch(e) {}
+                // #endregion
+
                 if(typeof callback1 === 'function')
-                    callback1(force, bodyPosition)
+                    callback1(force, bodyPosition, _name2)
                 if(typeof callback2 === 'function')
-                    callback2(force, bodyPosition)
+                    callback2(force, bodyPosition, _name1)
             }
         })
     }

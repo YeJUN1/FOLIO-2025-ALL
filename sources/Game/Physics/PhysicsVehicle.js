@@ -11,6 +11,12 @@ export class PhysicsVehicle
 
         this.events = new Events()
 
+        // #region debug-point A:telemetry-init
+        this._dbg = { url: 'http://127.0.0.1:7777/event', sid: 'vehicle-flip', run: 'post', n: 0, last: 0, autoDrive: false, autoStarted: false }
+        this._dbg.send = (hypothesisId, location, msg, data) => { try { fetch(this._dbg.url, { method: 'POST', body: JSON.stringify({ sessionId: this._dbg.sid, runId: this._dbg.run, hypothesisId, location, msg: '[DEBUG] ' + msg, data, ts: Date.now() }) }).catch(() => {}) } catch(e) {} }
+        this._dbg.send('A', 'PhysicsVehicle.js:constructor', 'vehicle constructed', {})
+        // #endregion
+
         this.steeringAmplitude = 0.5
         this.engineForceAmplitude = 300
         this.boostMultiplier = 2
@@ -93,19 +99,37 @@ export class PhysicsVehicle
             friction: 0.4,
             rotation: new THREE.Quaternion().setFromAxisAngle(new THREE.Euler(0, 1, 0), Math.PI * 0),
             colliders: [
-                { shape: 'cuboid', mass: 2.5, parameters: [ 1.32, 0.29, 0.60 ], position: { x: 0.05, y: -0.58, z: 0 }, centerOfMass: { x: 0, y: -0.88, z: 0 } }, // Main
-                { shape: 'cuboid', mass: 0, parameters: [ 0.90, 0.14, 0.50 ], position: { x: -0.15, y: -0.40, z: 0 } }, // Top
-                { shape: 'cuboid', mass: 0, parameters: [ 1.45, 0.33, 0.64 ], position: { x: 0.06, y: -0.6177, z: 0 }, category: 'bumper' }, // Bumper
+                { shape: 'cuboid', mass: 2.5, parameters: [ 1.32, 0.29, 0.60 ], position: { x: 0.05, y: -0.10, z: 0 }, centerOfMass: { x: 0, y: -0.50, z: 0 } }, // Main
+                { shape: 'cuboid', mass: 0, parameters: [ 0.90, 0.14, 0.50 ], position: { x: -0.15, y: 0.40, z: 0 } }, // Top
+                { shape: 'cuboid', mass: 0, parameters: [ 1.45, 0.33, 0.64 ], position: { x: 0.06, y: -0.20, z: 0 }, category: 'bumper' }, // Bumper
             ],
             canSleep: false,
             waterGravityMultiplier: 0,
-            onCollision: (force, position) =>
+            onCollision: (force, position, otherName) =>
             {
                 this.game.audio.groups.get('hitDefault').playRandomNext(force, position)
+
+                // #region debug-point F:chassis-collision
+                { let _f = force; try { _f = (force && typeof force === 'object') ? +Number(force).toFixed(2) : +Number(force).toFixed(2) } catch(e) { _f = String(force) }
+                  this._dbg.send('F', 'PhysicsVehicle.js:onCollision', 'chassis body collision', { force: _f, other: otherName || '', pos: [+position.x.toFixed(2), +position.y.toFixed(2), +position.z.toFixed(2)], bodyY: +this.position.y.toFixed(3), spd: +this.speed.toFixed(2), contacts: this.wheels.inContactCount, upY: +this.upward.y.toFixed(3), t: +this.game.ticker.elapsed.toFixed(2) }) }
+                // #endregion
             }
         })
         this.chassis.physical = object.physical
         this.chassis.mass = this.chassis.physical.body.mass()
+
+        // 开启连续碰撞检测（CCD），避免高速冲撞时穿透薄障碍（如领地石栏板）
+        this.chassis.physical.body.enableCcd(true)
+
+        // #region debug-point B:chassis-geometry
+        {
+            const _b = this.chassis.physical.body
+            let _com = null, _pi = null
+            try { _com = _b.localCom && { x: +_b.localCom().x.toFixed(4), y: +_b.localCom().y.toFixed(4), z: +_b.localCom().z.toFixed(4) } } catch(e) {}
+            try { const _p = _b.principalInertia && _b.principalInertia(); _pi = _p && { x: +_p.x.toFixed(4), y: +_p.y.toFixed(4), z: +_p.z.toFixed(4) } } catch(e) {}
+            this._dbg.send('B', 'PhysicsVehicle.js:setChassis', 'chassis mass properties', { mass: this.chassis.mass, localCom: _com, principalInertia: _pi })
+        }
+        // #endregion
     }
 
     setWheels()
@@ -246,6 +270,10 @@ export class PhysicsVehicle
                 {
                     this.upsideDown.active = true
                     this.events.trigger('upsideDown', [ this.upsideDown.ratio ])
+
+                    // #region debug-point E:upside-down-detected
+                    this._dbg.send('E', 'PhysicsVehicle.js:upsideDown.test', 'upsideDown detected', { ratio: +this.upsideDown.ratio.toFixed(3), upY: +this.upward.y.toFixed(3), pos: [+this.position.x.toFixed(2), +this.position.y.toFixed(2), +this.position.z.toFixed(2)], contacts: this.wheels.inContactCount, t: +this.game.ticker.elapsed.toFixed(2) })
+                    // #endregion
                 }
             }
             else
@@ -406,6 +434,10 @@ export class PhysicsVehicle
             accumulatedXAngle = 0
             accumulatedZAngle = 0
 
+            // #region debug-point E:flip-jump
+            const _beforeY = this.upward.y
+            // #endregion
+
             const up = new THREE.Vector3(0, 1, 0)
             const sidewardDot = up.dot(this.sideward)
             const forwardDot = up.dot(this.forward)
@@ -435,6 +467,10 @@ export class PhysicsVehicle
                 torque.applyQuaternion(this.chassis.physical.body.rotation())
                 this.chassis.physical.body.applyTorqueImpulse(torque)
             }
+
+            // #region debug-point E:flip-jump
+            this._dbg.send('E', 'PhysicsVehicle.js:flip.jump', 'flip jump applied', { upYBefore: +_beforeY.toFixed(3), sidewardDot: +sidewardDot.toFixed(3), forwardDot: +forwardDot.toFixed(3), upwardDot: +upwarddDot.toFixed(3), flipForce: this.flip.force, mass: this.chassis.mass, posY: +this.position.y.toFixed(3), t: +this.game.ticker.elapsed.toFixed(2) })
+            // #endregion
         }
 
         if(this.game.debug.active)
@@ -452,6 +488,10 @@ export class PhysicsVehicle
         this.chassis.physical.body.setAngvel({ x: 0, y: 0, z: 0 })
 
         this.position.copy(position)
+
+        // #region debug-point C:spawn
+        this._dbg.send('C', 'PhysicsVehicle.js:moveTo', 'vehicle moved/spawned', { pos: [+position.x.toFixed(3), +position.y.toFixed(3), +position.z.toFixed(3)], rotation: +rotation.toFixed(3), t: +this.game.ticker.elapsed.toFixed(2) })
+        // #endregion
     }
 
     updatePrePhysics()
@@ -575,6 +615,34 @@ export class PhysicsVehicle
         this.stuck.test()
         // this.backWheel.test()
         this.flip.test()
+
+        // #region debug-point A:telemetry-sample
+        {
+            const _t = this.game.ticker.elapsed
+            if(this._dbg.n < 500 && _t - this._dbg.last > 0.25)
+            {
+                this._dbg.last = _t
+                this._dbg.n++
+                const _av = this.chassis.physical.body.angvel()
+                this._dbg.send('A', 'PhysicsVehicle.js:updatePostPhysics', 'sample', {
+                    t: +_t.toFixed(2),
+                    pos: [+this.position.x.toFixed(3), +this.position.y.toFixed(3), +this.position.z.toFixed(3)],
+                    upY: +this.upward.y.toFixed(3),
+                    angvel: [+_av.x.toFixed(3), +_av.y.toFixed(3), +_av.z.toFixed(3)],
+                    spd: +this.speed.toFixed(2),
+                    xzSpd: +this.xzSpeed.toFixed(2),
+                    contacts: this.wheels.inContactCount,
+                    contactsEach: this.wheels.items.map((w) => w.inContact ? 1 : 0),
+                    susp: this.wheels.items.map((w) => w.suspensionLength === null ? null : +w.suspensionLength.toFixed(3)),
+                    upRatio: +this.upsideDown.ratio.toFixed(3),
+                    upsideDown: this.upsideDown.active,
+                    acc: +this.game.player.accelerating.toFixed(2),
+                    steer: +this.game.player.steering.toFixed(2),
+                    suspStates: this.game.player.suspensions.join('/'),
+                })
+            }
+        }
+        // #endregion
     }
 
     activate()
