@@ -328,3 +328,35 @@
                     
                     @media only screen and (max-width 520px)
                         display initial
+
+    .fenced-zone
+        position absolute
+        border 3px dashed #ffffff
+        border-radius 12px
+        background #ffffff0a
+        box-shadow inset 0 0 20px #00000066
+        opacity 0.5
+        pointer-events none
+
+        .name-container
+            display flex
+            justify-content center
+            position absolute
+            top 0
+            left 0
+            right 0
+            transform translate(0, -50%)
+
+            .name
+                background #000000
+                text-transform uppercase
+                color #ffffff
+                padding 2px 6px
+                letter-spacing 1px
+                text-align center
+                box-shadow 0 0 4px #00000077
+                white-space nowrap
+
+                @media only screen and (max-width 520px)
+                    br
+                        display initial

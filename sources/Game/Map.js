@@ -1,5 +1,6 @@
 import { clamp } from 'three/src/math/MathUtils.js'
 import { Game } from './Game.js'
+import { fenceEnclosureZone } from '../data/fenceEnclosure.js'
 
 export class Map
 {
@@ -28,6 +29,7 @@ export class Map
         this.initiated = true
         
         this.setLocations()
+        this.setFencedZone()
         this.setPlayer()
         this.setTexture()
 
@@ -88,6 +90,27 @@ export class Map
         }
     }
     
+    setFencedZone()
+    {
+        // Outline the area the player drew on the map and which is now fenced (World/Fences.js)
+        const northWest = this.worldToMap({ x: fenceEnclosureZone.west, z: fenceEnclosureZone.north })
+        const southEast = this.worldToMap({ x: fenceEnclosureZone.east, z: fenceEnclosureZone.south })
+
+        const element = document.createElement('div')
+        element.classList.add('fenced-zone')
+        element.innerHTML = /* html */`
+            <div class="name-container">
+                <div class="name">Fenced<br /> area</div>
+            </div>
+        `
+        element.style.left = `${northWest.x * 100}%`
+        element.style.top = `${northWest.y * 100}%`
+        element.style.width = `${(southEast.x - northWest.x) * 100}%`
+        element.style.height = `${(southEast.y - northWest.y) * 100}%`
+
+        this.element.append(element)
+    }
+
     setPlayer()
     {
         this.player = {}
