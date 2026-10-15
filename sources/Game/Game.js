@@ -176,7 +176,8 @@ export class Game
                 [ 'timeMachineScreenMGSTexture',           `timeMachine/timeMachineScreenMGS.${compressedTextureExtension}${cb}`,                compressedTextureFormat, (resource) => { resource.minFilter = THREE.NearestFilter; resource.magFilter = THREE.NearestFilter; resource.generateMipmaps = false; resource.wrapS = THREE.ClampToEdgeWrapping; resource.wrapT = THREE.ClampToEdgeWrapping; resource.colorSpace = THREE.SRGBColorSpace; } ],
                 [ 'timeMachineScreenFolioTexture',         `timeMachine/timeMachineScreenFolio.${compressedTextureExtension}${cb}`,              compressedTextureFormat, (resource) => { resource.minFilter = THREE.NearestFilter; resource.magFilter = THREE.NearestFilter; resource.generateMipmaps = false; resource.wrapS = THREE.ClampToEdgeWrapping; resource.wrapT = THREE.ClampToEdgeWrapping; resource.colorSpace = THREE.SRGBColorSpace; } ],
                 [ 'characterModel',                        `character/character${compressedModelSuffix}.glb${cb}`,                               'gltf' ],
-                [ 'pandoraFenceModel', `fences/bambooFence.glb${cb}`, 'gltf'
+                [ 'pandoraFenceModel', `fences/bambooFence.glb${cb}`, 'gltf' ],
+               
             ],
             (toLoad, total) =>
             {
