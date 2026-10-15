@@ -83,6 +83,7 @@ export class World
             this.areas = new Areas()
             this.spiderman = new Spiderman()
             this.garden = new Garden()
+            this.pandoraFence = new PandoraFence()
         }
         else if(step === 2)
         {
