@@ -30,6 +30,8 @@ import { Modals } from './Modals.js'
 import { PhysicsVehicle } from './Physics/PhysicsVehicle.js'
 import { PhysicsWireframe } from './Physics/PhysicsWireframe.js'
 import { Zones } from './Zones.js'
+import { Territory } from './Territory.js'
+import { TerritoryFence } from './World/TerritoryFence.js'
 import { Overlay } from './Overlay.js'
 import { Tornado } from './Tornado.js'
 import { InteractivePoints } from './InteractivePoints.js'
@@ -190,6 +192,8 @@ export class Game
         this.wireframe = new PhysicsWireframe()
         this.physicalVehicle = new PhysicsVehicle()
         this.zones = new Zones()
+        this.territory = new Territory()
+        this.territoryFence = new TerritoryFence()
         this.player = new Player()
         this.character = new Character()
         this.closingManager = new ClosingManager()

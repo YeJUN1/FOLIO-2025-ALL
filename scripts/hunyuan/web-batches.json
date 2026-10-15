@@ -23,6 +23,7 @@
         { "key": "lantern", "creationsId": "710b3dcb-55ed-4920-92e7-8d16cd56b6ab", "style": "石雕", "submittedAt": "2026-10-04", "chosen": { "assetId": "b6c9e1e0-8c99-4707-b714-cbb206735792", "index": 1, "note": "石灯笼，形体挺拔，灯室镂空精细，檐口翘角优美" }, "downloaded": true },
         { "key": "lotus", "creationsId": "f6d19e60-8a02-4a42-9103-e59dca51b1b6", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "ebef5710-532a-4887-979a-4ef6575bcc13", "index": 3, "note": "荷花+大型荷叶底座组合，花朵正立饱满" }, "downloaded": true },
         { "key": "lotusLeaf", "creationsId": "677782e6-c171-41ed-acb2-1299fd95f100", "style": "中国风", "submittedAt": "2026-10-04", "chosen": { "assetId": "d54a4946-b5dd-4489-b7ad-4df36ed76585", "index": 3, "note": "圆形荷叶，最大最舒展带金边" }, "downloaded": true },
-        { "key": "flowerPot", "creationsId": "630efd0c-5032-4aa7-82ce-153d14501418", "style": "通用", "submittedAt": "2026-10-04", "chosen": { "assetId": "f104d35d-b2b6-4232-8eab-63721b1710ad", "index": 0, "note": "青瓷花盆，兽足底座+回纹装饰" }, "downloaded": true }
+        { "key": "flowerPot", "creationsId": "630efd0c-5032-4aa7-82ce-153d14501418", "style": "通用", "submittedAt": "2026-10-04", "chosen": { "assetId": "f104d35d-b2b6-4232-8eab-63721b1710ad", "index": 0, "note": "青瓷花盆，兽足底座+回纹装饰" }, "downloaded": true },
+        { "key": "stoneFence", "creationsId": "48214a92-7759-4dcd-85fa-84cfd1eb782d", "style": "中国风", "submittedAt": "2026-10-12", "chosen": { "assetId": "a0c7942e-34db-42e7-ac35-6cd380ccd955", "index": 4, "note": "两端各一根方形矮望柱 + 双跨回纹镂空栏板，两端齐平便于首尾拼接；其余候选柱距过密或栏板花纹糊" }, "downloaded": true }
     ]
 }

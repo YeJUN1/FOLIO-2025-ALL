@@ -106,6 +106,18 @@ export class VisualVehicle
         this.game.materials.updateObject(this.parts.chassis)
         this.game.scene.add(this.parts.chassis)
 
+        // #region debug-point V:body-offset
+        // revuelto.glb 的 chassis 节点没有 y 位移（default.glb 有 +0.907），整车车身几何体落在原点下方
+        // （车身最低 y≈-0.97、bodyPainted 底 y≈-0.94），而物理刚体原点落在「悬挂连接点」高度
+        // （静止时 ≈ 地面 + 0.835）。两者相差 0.16，导致车身视觉下陷进地面约 10cm。
+        // 模型设计意图是原点在 地面 + 0.995（轮胎底 -0.995 触地），故车身网格整体上移 0.16 补偿。
+        // 注意：wheelContainer 是 chassis 的兄弟节点，且车轮容器在 setWheels() 之后才加入 chassis，
+        //       因此这里必须放在 setWheels() 之前，且只会影响车身网格。
+        this.bodyOffsetY = 0.16
+        for(const child of this.parts.chassis.children)
+            child.position.y += this.bodyOffsetY
+        // #endregion
+
         // Blinker left
         if(this.parts.blinkerLeft)
             this.parts.blinkerLeft.visible = false
