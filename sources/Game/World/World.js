@@ -30,6 +30,7 @@ import { Benches } from './Benches.js'
 import { Scenery } from './Scenery.js'
 import { Spiderman } from './Spiderman.js'
 import { Garden } from './Garden.js'
+import { PandoraFence } from './PandoraFence.js'
 
 export class World
 {
