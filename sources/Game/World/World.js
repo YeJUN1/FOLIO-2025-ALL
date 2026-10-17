@@ -31,6 +31,7 @@ import { Scenery } from './Scenery.js'
 import { Spiderman } from './Spiderman.js'
 import { Garden } from './Garden.js'
 import { PandoraFence } from './PandoraFence.js'
+import { Territory } from './Territory.js'
 
 export class World
 {
@@ -84,6 +85,7 @@ export class World
             this.spiderman = new Spiderman()
             this.garden = new Garden()
             this.pandoraFence = new PandoraFence()
+            this.territory = new Territory()
         }
         else if(step === 2)
         {
