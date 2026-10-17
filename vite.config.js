@@ -14,7 +14,16 @@ export default {
     {
         // https: true,
         host: true, // Open to local network and display URL
-        open: true // Open in browser
+        open: true, // Open in browser
+        proxy:
+        {
+            // 登录 / 注册 / 进度接口转发到账户服务（account-login/server，默认 3000）
+            '/api':
+            {
+                target: process.env.VITE_ACCOUNT_URL || 'http://localhost:3000',
+                changeOrigin: true
+            }
+        }
     },
     build:
     {

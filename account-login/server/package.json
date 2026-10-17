@@ -1,0 +1,13 @@
+{
+    "name": "account-server",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "用户名 + 密码的注册 / 登录 / 会话 / 进度存档服务（纯 Node 内置模块，无依赖）",
+    "engines": {
+        "node": ">=22.5.0"
+    },
+    "scripts": {
+        "start": "node account-server.js"
+    }
+}

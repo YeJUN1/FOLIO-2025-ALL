@@ -1,0 +1,50 @@
+    </div>
+
+    <!-- Account: username + password (blocking until signed in) -->
+    <div class="js-account account">
+        <div class="account-inner">
+            <div class="account-card">
+                <div class="account-title">Account</div>
+                <div class="js-account-status account-status">Sign in to play online and keep your progress on every device.</div>
+
+                <div class="account-tabs">
+                    <button type="button" class="js-account-tab account-tab is-active" data-mode="login">Log in</button>
+                    <button type="button" class="js-account-tab account-tab" data-mode="register">Register</button>
+                </div>
+
+                <form class="js-account-form account-form" action="#">
+                    <label class="account-field">
+                        <span>Username</span>
+                        <input class="js-account-username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="16" placeholder="2 to 16 characters">
+                    </label>
+
+                    <label class="account-field">
+                        <span>Password</span>
+                        <input class="js-account-password" type="password" autocomplete="current-password" maxlength="128" placeholder="At least 6 characters">
+                    </label>
+
+                    <label class="js-account-confirm-field account-field is-hidden">
+                        <span>Repeat password</span>
+                        <input class="js-account-confirm" type="password" autocomplete="new-password" maxlength="128" placeholder="Same password again">
+                    </label>
+
+                    <div class="js-account-error account-error is-hidden"></div>
+
+                    <button type="submit" class="js-account-submit account-submit button">Log in</button>
+                </form>
+
+                <p class="account-note">There is no phone number or email attached, so a forgotten password cannot be recovered.</p>
+            </div>
+        </div>
+    </div>
+                                        <tr>
+                                            <td>
+                                                Account
+                                            </td>
+                                            <td>
+                                                <button class="js-account-logout button is-small has-tooltip">
+                                                    <div class="js-tooltip tooltip">Signs you out on this device. Your progress stays on the server.</div>
+                                                    <span class="js-account-name">Sign out</span>
+                                                </button>
+                                            </td>
+                                        </tr>
