@@ -1,14 +1,33 @@
 {
     "_help": [
-        "「划地盘」领地围栏布局唯一数据源：改范围/密度只改这里，无需动代码。",
-        "rect: 红框在世界坐标系的矩形（x/z 各覆盖 [-96,96]，由地图截图经白色 pin 标定，见 docs/划地盘.md）。",
-        "scale: 栏杆件整体缩放（件原始 宽1.12×高0.53×厚0.09 米）；height≈0.53*scale。",
-        "overlap: 相邻件的间距系数，=1 首尾相接，<1 轻微重叠遮缝，>1 留空隙。",
-        "yOffset: 整体竖直偏移(米)；minAboveWater: 件底至少高出水面的距离(米)，防止落到海里被淹。"
+        "「划地盘」领地围栏的唯一数据源。改范围或密度只改这里，不必动代码。",
+        "territories[]: 每一块地盘一个矩形。须翊恒的右下角仍是第一条，scale/overlap 与原来的单矩形一致。",
+        "只写顶层 rect（没有 territories）时，仍按旧格式围一圈，方便回退。",
+        "rect 的 x/z 都在世界坐标 [-96, 96] 内。scale 放大栏杆件（原始约 1.12×0.53×0.09 米）。",
+        "overlap: 间距系数，1 为首尾相接，略小于 1 会叠一点遮住接缝。",
+        "相邻地盘重合的边只铺一次：先写入的地盘保留整条边。须翊恒排在最前，所以他的圈不受影响。"
     ],
-    "rect": { "minX": 18.6, "maxX": 95.1, "minZ": 26.3, "maxZ": 94.4 },
     "scale": 2,
     "overlap": 0.95,
     "yOffset": 0,
-    "minAboveWater": 0.05
+    "minAboveWater": 0.05,
+    "territories": [
+        {
+            "id": "xuyiheng",
+            "owner": "须翊恒",
+            "label": "右下角",
+            "rect": { "minX": 18.6, "maxX": 95.1, "minZ": 26.3, "maxZ": 94.4 },
+            "scale": 2,
+            "overlap": 0.95
+        },
+        {
+            "id": "peter-southwest",
+            "owner": "Peter Zhang",
+            "github": "peterzhang0528",
+            "label": "西南陆",
+            "rect": { "minX": -86.0, "maxX": 17.8, "minZ": 28.2, "maxZ": 74.0 },
+            "scale": 2,
+            "overlap": 0.95
+        }
+    ]
 }
