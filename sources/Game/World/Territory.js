@@ -1,6 +1,5 @@
 import * as THREE from 'three/webgpu'
 import { Game } from '../Game.js'
-import { PeterSignature } from './PeterSignature.js'
 
 /**
  * 「划地盘」领地围栏（数据驱动、纯视觉）
@@ -19,7 +18,6 @@ export class Territory
     {
         this.game = Game.getInstance()
         this.items = []
-        this.sign = null
         this.visible = true
 
         this.setFromDescription()
@@ -42,7 +40,7 @@ export class Territory
         }
 
         const territories = this.getTerritories(description)
-        if(!description || (!territories.length && !description.signature))
+        if(!description || !territories.length)
             return
 
         let resource = null
@@ -70,18 +68,6 @@ export class Territory
 
             for(const territory of territories)
                 this.buildTerritory(resource, territory, description, pieceLength, occupied, clearances)
-        }
-
-        if(description.signature)
-        {
-            try
-            {
-                this.sign = new PeterSignature(description.signature)
-            }
-            catch(error)
-            {
-                console.log(`Territory > Couldn't build signature: ${error}`)
-            }
         }
 
         this.setDebug()
@@ -243,9 +229,6 @@ export class Territory
         this.visible = _visible
         for(const item of this.items)
             item.model.visible = _visible
-
-        if(this.sign)
-            this.sign.setVisible(_visible)
     }
 
     setDebug()

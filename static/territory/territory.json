@@ -5,20 +5,12 @@
         "只写顶层 rect（没有 territories）时，仍按旧格式围一圈，方便回退。",
         "rect 的 x/z 都在世界坐标 [-96, 96] 内。scale 放大栏杆件（原始约 1.12×0.53×0.09 米）。",
         "overlap: 间距系数，1 为首尾相接，略小于 1 会叠一点遮住接缝。",
-        "clipClearances: 为 true 时，穿过 clearances 的边段不插栏杆（园林缓冲、竹篱院子）。",
-        "相邻地盘重合的边只铺一次：先写入的地盘保留整条边。须翊恒排在最前，所以他的圈不受影响。",
-        "signature: 出生点西侧的「Peter's Domain」名牌，纯视觉。"
+        "相邻地盘重合的边只铺一次：先写入的地盘保留整条边。须翊恒排在最前，所以他的圈不受影响。"
     ],
     "scale": 2,
     "overlap": 0.95,
     "yOffset": 0,
     "minAboveWater": 0.05,
-    "clearances": [
-        {
-            "id": "pandora-yard",
-            "rect": { "minX": 15.4, "maxX": 86.6, "minZ": -14.6, "maxZ": 27.4 }
-        }
-    ],
     "territories": [
         {
             "id": "xuyiheng",
@@ -29,61 +21,13 @@
             "overlap": 0.95
         },
         {
-            "id": "peter-north",
-            "owner": "Peter Zhang",
-            "github": "peterzhang0528",
-            "label": "北苑",
-            "clipClearances": true,
-            "rect": { "minX": -36.4, "maxX": 84.0, "minZ": -87.0, "maxZ": -3.5 },
-            "scale": 6,
-            "overlap": 0.95
-        },
-        {
-            "id": "peter-belt",
-            "owner": "Peter Zhang",
-            "github": "peterzhang0528",
-            "label": "中带",
-            "clipClearances": true,
-            "rect": { "minX": -87.0, "maxX": 88.0, "minZ": -3.5, "maxZ": 24.2 },
-            "scale": 6,
-            "overlap": 0.95
-        },
-        {
-            "id": "peter-west-shore",
-            "owner": "Peter Zhang",
-            "github": "peterzhang0528",
-            "label": "舒雯南岸",
-            "clipClearances": true,
-            "rect": { "minX": -87.0, "maxX": -36.4, "minZ": -15.4, "maxZ": -3.5 },
-            "scale": 6,
-            "overlap": 0.95
-        },
-        {
             "id": "peter-southwest",
             "owner": "Peter Zhang",
             "github": "peterzhang0528",
             "label": "西南陆",
-            "clipClearances": true,
-            "rect": { "minX": -87.0, "maxX": 17.8, "minZ": 24.2, "maxZ": 74.0 },
-            "scale": 6,
-            "overlap": 0.95
-        },
-        {
-            "id": "peter-south-coast",
-            "owner": "Peter Zhang",
-            "github": "peterzhang0528",
-            "label": "南岸",
-            "clipClearances": true,
-            "rect": { "minX": -73.0, "maxX": 17.8, "minZ": 74.0, "maxZ": 82.0 },
-            "scale": 6,
+            "rect": { "minX": -86.0, "maxX": 17.8, "minZ": 28.2, "maxZ": 74.0 },
+            "scale": 2,
             "overlap": 0.95
         }
-    ],
-    "signature": {
-        "title": "PETER'S DOMAIN",
-        "kicker": "FREE LAND  ·  我的地盘",
-        "subtitle": "peterzhang0528",
-        "position": { "x": 11, "z": 36 },
-        "rotationY": 1.5707963267948966
-    }
+    ]
 }
