@@ -29,7 +29,6 @@ import { Fences } from './Fences.js'
 import { Benches } from './Benches.js'
 import { Scenery } from './Scenery.js'
 import { Spiderman } from './Spiderman.js'
-import { Garden } from './Garden.js'
 import { PandoraFence } from './PandoraFence.js'
 import { Territory } from './Territory.js'
 
@@ -83,7 +82,6 @@ export class World
             this.scenery = new Scenery()
             this.areas = new Areas()
             this.spiderman = new Spiderman()
-            this.garden = new Garden()
             this.pandoraFence = new PandoraFence()
             this.territory = new Territory()
         }

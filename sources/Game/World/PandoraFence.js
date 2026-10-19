@@ -12,10 +12,12 @@ export class PandoraFence
         this.game = Game.getInstance()
 
         // Enclosed area (world units, matching the region the user highlighted).
-        // The neighbours' Suzhou garden (scene.json origin 29,-45, scale 5) spreads
-        // up to z = - 19 and x = 57, so the south edge is pulled in to - 14 to keep
-        // the garden, and every stone in it, outside the fence.
-        this.min = { x: 16, z: - 14 }
+        // The z = - 14 edge used to be pulled in that far to keep the neighbours'
+        // Suzhou garden (scene.json origin 29,-45, scale 5) outside the fence, which
+        // left Altar (74.8, - 14.1) and Social (25.7, - 14.5) stranded just outside.
+        // That garden has been removed, so the edge now runs at z = - 37 and both
+        // locations, with their surroundings, end up inside.
+        this.min = { x: 16, z: - 37 }
         this.max = { x: 86, z: 27.4 }
 
         // Fence height in meters (the segment is scaled up to reach it)
