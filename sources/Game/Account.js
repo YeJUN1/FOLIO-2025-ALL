@@ -38,6 +38,9 @@ const SYNC_INTERVAL = 30 * 1000   // 玩的时候每 30 秒把进度回传一次
 const ERROR_TEXT = {
     username: 'Username must be 2 to 16 characters, using letters, numbers, Chinese, _ or -',
     password: `Password must be at least ${PASSWORD_MIN} characters`,
+    creatorRequired: 'Please choose whether you are one of the creators',
+    creatorKey: 'Enter the creator key, or choose "Not a creator"',
+    creatorPassword: 'That creator key is not correct',
     match: 'The two passwords do not match',
     sameAsUsername: 'The password cannot be the same as the username',
     weakPassword: 'That password is too easy to guess, please pick another one',
@@ -83,6 +86,12 @@ export class Account
         this.element = document.querySelector('.js-account')
         this.mode = 'login'
         this.busy = false
+
+        // 积分 / 创世神：登录后从服务端带回，creatorChoice 是注册时的二选一（null | true | false）
+        this.points = 0
+        this.isCreator = false
+        this.creatorChoice = null
+        this.hudElement = null
         this.syncTimer = null
         this.lastUploaded = null
         this.onReady = null
@@ -108,6 +117,11 @@ export class Account
             confirmField: element.querySelector('.js-account-confirm-field'),
             confirm: element.querySelector('.js-account-confirm'),
             error: element.querySelector('.js-account-error'),
+            creatorField: element.querySelector('.js-account-creator-field'),
+            creatorYes: element.querySelector('.js-account-creator-yes'),
+            creatorNo: element.querySelector('.js-account-creator-no'),
+            creatorPasswordField: element.querySelector('.js-account-creator-password-field'),
+            creatorPassword: element.querySelector('.js-account-creator-password'),
             submit: element.querySelector('.js-account-submit')
         }
 
@@ -116,6 +130,9 @@ export class Account
 
         for(const tab of this.ui.tabs)
             tab.addEventListener('click', () => this.setMode(tab.dataset.mode))
+
+        this.ui.creatorYes?.addEventListener('click', () => this.setCreatorChoice(true))
+        this.ui.creatorNo?.addEventListener('click', () => this.setCreatorChoice(false))
 
         this.ui.form.addEventListener('submit', (event) =>
         {
@@ -144,6 +161,13 @@ export class Account
             tab.classList.toggle('is-active', tab.dataset.mode === this.mode)
 
         this.ui.confirmField.classList.toggle('is-hidden', this.mode !== 'register')
+        this.ui.creatorField?.classList.toggle('is-hidden', this.mode !== 'register')
+
+        // 创造者选择只在注册时生效：进注册重置为空，离开则清掉
+        if(this.mode === 'register')
+            this.resetCreator()
+        else
+            this.creatorChoice = null
         this.ui.submit.textContent = this.mode === 'register' ? 'Create account' : 'Log in'
 
         // 注册这一栏必须把话说清楚：没有手机号邮箱，忘了就是真忘了
@@ -190,6 +214,73 @@ export class Account
     getNickname()
     {
         return this.user ? this.user.nickname : ''
+    }
+
+    getPoints()
+    {
+        return this.points
+    }
+
+    getIsCreator()
+    {
+        return this.isCreator
+    }
+
+    // ———— 创造者二选一 ————
+
+    setCreatorChoice(value)
+    {
+        this.creatorChoice = value
+
+        if(this.ui)
+        {
+            this.ui.creatorYes?.classList.toggle('is-active', value === true)
+            this.ui.creatorNo?.classList.toggle('is-active', value === false)
+            this.ui.creatorPasswordField?.classList.toggle('is-hidden', value !== true)
+        }
+
+        this.setError(null)
+    }
+
+    resetCreator()
+    {
+        this.creatorChoice = null
+
+        if(this.ui)
+        {
+            this.ui.creatorYes?.classList.remove('is-active')
+            this.ui.creatorNo?.classList.remove('is-active')
+            this.ui.creatorPasswordField?.classList.add('is-hidden')
+
+            if(this.ui.creatorPassword)
+                this.ui.creatorPassword.value = ''
+        }
+    }
+
+    // ———— 游戏内积分 HUD ————
+
+    updateHud()
+    {
+        if(!this.user)
+        {
+            if(this.hudElement)
+                this.hudElement.style.display = 'none'
+
+            return
+        }
+
+        if(!this.hudElement)
+        {
+            this.hudElement = document.createElement('div')
+            this.hudElement.className = 'account-hud'
+            document.body.appendChild(this.hudElement)
+        }
+
+        this.hudElement.innerHTML =
+            `<span class="account-hud-star">✦</span>${Number(this.points) || 0}` +
+            (this.isCreator ? '<span class="account-hud-creator">creator</span>' : '')
+
+        this.hudElement.style.display = 'block'
     }
 
     /**
@@ -279,17 +370,43 @@ export class Account
             return
         }
 
-        // 没有找回密码的途径，所以注册时输两遍，防止手滑打错
+        // 没有找回密码的途径，所以注册时输两遍，防手滑打错
         if(this.mode === 'register' && password !== this.ui.confirm.value)
         {
             this.setError(ERROR_TEXT.match)
             return
         }
-
+        
+        // 注册必须先表态：是不是创造者；选了“是”就得填密钥
+        if(this.mode === 'register')
+        {
+            if(this.creatorChoice === null)
+            {
+                this.setError(ERROR_TEXT.creatorRequired)
+                return
+            }
+        
+            if(this.creatorChoice === true && !this.ui.creatorPassword.value)
+            {
+                this.setError(ERROR_TEXT.creatorKey)
+                return
+            }
+        }
+        
         const path = this.mode === 'register' ? '/api/register' : '/api/login'
-
+        
+        const body = { username, password }
+        
+        if(this.mode === 'register')
+        {
+            body.isCreator = this.creatorChoice === true
+        
+            if(this.creatorChoice === true)
+                body.creatorPassword = this.ui.creatorPassword.value
+        }
+        
         this.setBusy(true)
-        const result = await this.request(path, { body: { username, password } })
+        const result = await this.request(path, { body })
         this.setBusy(false)
 
         if(!result.ok)
@@ -493,6 +610,10 @@ export class Account
     setUser(user)
     {
         this.user = user || null
+        this.points = user ? (Number(user.points) || 0) : 0
+        this.isCreator = user ? !!user.isCreator : false
+
+        this.updateHud()
     }
 
     clearToken()

@@ -15,10 +15,12 @@
 // 需要 Node 22.5+（用到内置的 node:sqlite）。
 //
 // 接口一览（前端对应 Account.js）：
-//   POST /api/register  { username, password }            -> { ok, token, user, progress }
+//   POST /api/register  { username, password, isCreator, creatorPassword } -> { ok, token, user, progress }
 //   POST /api/login     { username, password }            -> { ok, token, user, progress }
 //   GET  /api/me         Header: Authorization: Bearer t  -> { ok, user, progress }
 //   POST /api/progress   Header: Bearer + { progress }    -> { ok }
+//   POST /api/points/adjust  Header: x-admin-key + { username, delta|set, reason } -> { ok, user }
+//   （user 里带 points / isCreator）
 // 错误码用名字回给前端（不暴露细节）：username / password / weakPassword / sameAsUsername /
 //   registered / passwordTaken / notRegistered / wrongPassword / locked / ip / auth / server
 
@@ -58,6 +60,17 @@ const REGISTER_IP_HOURLY_LIMIT = 30
 const LOGIN_MAX_FAILS = 10
 const LOGIN_FAIL_WINDOW = 15 * 60 * 1000
 
+// ———— 积分 / 创世神 ————
+// 注册时二选一：
+//   「我是创造者」→ 必须输对共享密钥（CREATOR_PASSWORD），对了给 CREATOR_POINTS 分；
+//   否则按普通用户，给 DEFAULT_POINTS 分。
+// 密钥只在服务端比对，绝不放前端明文（否则看源码就能冒充拿满 5000）。
+const CREATOR_POINTS = 5000
+const DEFAULT_POINTS = 100
+const CREATOR_PASSWORD = process.env.CREATOR_PASSWORD || 'iamthecreator'
+// 积分调整接口用的管理密钥（供企微抓取脚本调用）；留空则该接口直接关闭。
+const ADMIN_KEY = process.env.ADMIN_KEY || ''
+
 // 存档放在同目录的 data.db，跟代码分开，删代码不会顺手删掉账号。
 const DB_FILE = path.join(currentDirectory, 'data.db')
 
@@ -69,6 +82,19 @@ function addMissingColumns()
     {
         db.exec('ALTER TABLE users ADD COLUMN password_print TEXT')
         console.log('🔧 users 表补上 password_print 字段')
+    }
+
+    // 老库补积分字段：已有账号默认按普通用户给 DEFAULT_POINTS，创造者标记为 0
+    if(!columns.some((column) => column.name === 'points'))
+    {
+        db.exec(`ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT ${DEFAULT_POINTS}`)
+        console.log('🔧 users 表补上 points 字段')
+    }
+
+    if(!columns.some((column) => column.name === 'is_creator'))
+    {
+        db.exec('ALTER TABLE users ADD COLUMN is_creator INTEGER NOT NULL DEFAULT 0')
+        console.log('🔧 users 表补上 is_creator 字段')
     }
 }
 
@@ -85,7 +111,18 @@ try
             password_hash  TEXT NOT NULL,
             salt           TEXT NOT NULL,
             password_print TEXT,
-            created_at     INTEGER NOT NULL
+            created_at     INTEGER NOT NULL,
+            points         INTEGER NOT NULL DEFAULT 100,
+            is_creator     INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS points_ledger (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT NOT NULL,
+            delta      INTEGER NOT NULL,
+            balance    INTEGER NOT NULL,
+            reason     TEXT,
+            created_at INTEGER NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS sessions (
@@ -101,6 +138,7 @@ try
         );
 
         CREATE INDEX IF NOT EXISTS sessions_username ON sessions (username);
+        CREATE INDEX IF NOT EXISTS points_ledger_username ON points_ledger (username);
     `)
 
     addMissingColumns()
@@ -238,6 +276,15 @@ function sameHash(left, right)
 {
     const a = Buffer.from(String(left), 'hex')
     const b = Buffer.from(String(right), 'hex')
+
+    return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b)
+}
+
+// 普通字符串的定长比较（用来对创造者密钥、管理密钥）
+function safeEqualText(left, right)
+{
+    const a = Buffer.from(String(left), 'utf8')
+    const b = Buffer.from(String(right), 'utf8')
 
     return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b)
 }
@@ -432,7 +479,8 @@ function getAccountByToken(token)
 
     const hash = hashToken(token)
     const row = db.prepare(`
-        SELECT sessions.expires_at AS expiresAt, users.username AS username, users.display AS nickname
+        SELECT sessions.expires_at AS expiresAt, users.username AS username, users.display AS nickname,
+               users.points AS points, users.is_creator AS isCreator
         FROM sessions JOIN users ON users.username = sessions.username
         WHERE sessions.token_hash = ?
     `).get(hash)
@@ -446,7 +494,7 @@ function getAccountByToken(token)
         return null
     }
 
-    return { username: row.username, nickname: row.nickname }
+    return { username: row.username, nickname: row.nickname, points: row.points, isCreator: !!row.isCreator }
 }
 
 function getAccountFromRequest(request)
@@ -513,15 +561,34 @@ async function apiRegister(request, response)
     if(db.prepare('SELECT username FROM users WHERE password_print = ?').get(print))
         return sendJson(response, 409, { error: 'passwordTaken' })
 
+    // 创造者二选一：选「我是创造者」必须输对共享密钥，才拿满 5000；否则普通 100。
+    const wantsCreator = !!(body && body.isCreator)
+    let points = DEFAULT_POINTS
+    let isCreator = 0
+
+    if(wantsCreator)
+    {
+        const creatorPassword = String((body && body.creatorPassword) || '')
+
+        if(!safeEqualText(creatorPassword, CREATOR_PASSWORD))
+            return sendJson(response, 400, { error: 'creatorPassword' })
+
+        points = CREATOR_POINTS
+        isCreator = 1
+    }
+
     const salt = crypto.randomBytes(16).toString('hex')
     const passwordHash = await hashPassword(password, salt)
 
     try
     {
         db.prepare(`
-            INSERT INTO users (username, display, password_hash, salt, password_print, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(key, username, passwordHash, salt, print, Date.now())
+            INSERT INTO users (username, display, password_hash, salt, password_print, created_at, points, is_creator)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(key, username, passwordHash, salt, print, Date.now(), points, isCreator)
+
+        db.prepare('INSERT INTO points_ledger (username, delta, balance, reason, created_at) VALUES (?, ?, ?, ?, ?)')
+            .run(key, points, points, isCreator ? 'register-creator' : 'register', Date.now())
     }
     catch
     {
@@ -534,12 +601,12 @@ async function apiRegister(request, response)
 
     const token = createSession(key)
 
-    console.log(`👤 新账号注册：${username}`)
+    console.log(`👤 新账号注册：${username}（${isCreator ? `创造者 ${points}分` : `普通 ${points}分`}）`)
 
     sendJson(response, 200, {
         ok: true,
         token,
-        user: { username: key, nickname: username },
+        user: { username: key, nickname: username, points, isCreator: !!isCreator },
         progress: null
     })
 }
@@ -564,7 +631,7 @@ async function apiLogin(request, response)
     if(isLoginLocked(key))
         return sendJson(response, 429, { error: 'locked' })
 
-    const user = db.prepare('SELECT username, display, password_hash, salt FROM users WHERE username = ?').get(key)
+    const user = db.prepare('SELECT username, display, password_hash, salt, points, is_creator FROM users WHERE username = ?').get(key)
 
     if(!user)
         return sendJson(response, 404, { error: 'notRegistered' })
@@ -586,7 +653,7 @@ async function apiLogin(request, response)
     sendJson(response, 200, {
         ok: true,
         token,
-        user: { username: key, nickname: user.display },
+        user: { username: key, nickname: user.display, points: user.points, isCreator: !!user.is_creator },
         progress: readProgress(key)
     })
 }
@@ -631,6 +698,55 @@ async function apiSaveProgress(request, response)
     `).run(account.username, text, Date.now())
 
     sendJson(response, 200, { ok: true })
+}
+
+// 积分调整：供可信的服务端脚本（企微抓取等）调用。
+// 靠请求头 x-admin-key 与 ADMIN_KEY 比对；ADMIN_KEY 为空则整个接口关闭。
+// body：{ username, delta } 或 { username, set }（set 为绝对值），可选 reason。
+async function apiAdjustPoints(request, response)
+{
+    if(!db)
+        return sendJson(response, 503, { error: 'server' })
+
+    if(!ADMIN_KEY)
+        return sendJson(response, 403, { error: 'adminDisabled' })
+
+    if(!safeEqualText(String(request.headers['x-admin-key'] || ''), ADMIN_KEY))
+        return sendJson(response, 401, { error: 'admin' })
+
+    const body = await readJsonBody(request)
+    const username = cleanUsername(body && body.username)
+
+    if(!username)
+        return sendJson(response, 400, { error: 'username' })
+
+    const key = usernameKey(username)
+    const user = db.prepare('SELECT username, points FROM users WHERE username = ?').get(key)
+
+    if(!user)
+        return sendJson(response, 404, { error: 'notRegistered' })
+
+    let delta = Number(body && body.delta)
+    const setTo = (body && typeof body.set === 'number') ? Number(body.set) : null
+
+    if(setTo !== null && Number.isFinite(setTo))
+        delta = setTo - user.points
+
+    if(!Number.isFinite(delta))
+        return sendJson(response, 400, { error: 'delta' })
+
+    delta = Math.trunc(delta)
+
+    const balance = user.points + delta
+    const reason = String((body && body.reason) || 'manual')
+
+    db.prepare('UPDATE users SET points = ? WHERE username = ?').run(balance, key)
+    db.prepare('INSERT INTO points_ledger (username, delta, balance, reason, created_at) VALUES (?, ?, ?, ?, ?)')
+        .run(key, delta, balance, reason, Date.now())
+
+    console.log(`💰 积分调整：${key} ${delta >= 0 ? '+' : ''}${delta} → ${balance}（${reason}）`)
+
+    sendJson(response, 200, { ok: true, user: { username: key, points: balance } })
 }
 
 // 把带异常的 handler 包一层，保证任何一边出错都还能回一句正经的 JSON，而不是让连接吊死
@@ -678,6 +794,9 @@ function handleRequest(request, response)
 
     if(request.method === 'GET' && pathname === '/api/me')
         return route(apiMe)(request, response)
+
+    if(request.method === 'POST' && pathname === '/api/points/adjust')
+        return route(apiAdjustPoints)(request, response)
 
     return sendJson(response, 404, { error: 'notFound' })
 }

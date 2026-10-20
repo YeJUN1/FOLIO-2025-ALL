@@ -81,6 +81,19 @@
                         <input class="js-account-confirm" type="password" autocomplete="new-password" maxlength="128" placeholder="Same password again">
                     </label>
 
+                    <div class="js-account-creator-field account-creator is-hidden">
+                        <span class="account-creator-label">Are you one of the creators?</span>
+                        <div class="account-creator-buttons">
+                            <button type="button" class="js-account-creator-yes account-creator-choice">I am the creator</button>
+                            <button type="button" class="js-account-creator-no account-creator-choice">Not a creator</button>
+                        </div>
+                    </div>
+
+                    <label class="js-account-creator-password-field account-field is-hidden">
+                        <span>Creator key</span>
+                        <input class="js-account-creator-password" type="password" autocomplete="off" maxlength="128" placeholder="Shared creator key">
+                    </label>
+
                     <div class="js-account-error account-error is-hidden"></div>
 
                     <button type="submit" class="js-account-submit account-submit button">Log in</button>

@@ -141,6 +141,76 @@
         text-align center
         opacity 0.45
 
+    .account-creator
+        margin-bottom 0.9em
+
+        &.is-hidden
+            display none
+
+        .account-creator-label
+            display block
+            margin-bottom 0.4em
+            font-size 0.7rem
+            letter-spacing 0.05em
+            text-transform uppercase
+            opacity 0.55
+
+        .account-creator-buttons
+            display flex
+            gap 6px
+
+        .account-creator-choice
+            flex 1
+            height 38px
+            border-radius 8px
+            border 1px solid alpha(#ffffff, 0.18)
+            color alpha(#ffffff, 0.7)
+            font-size 0.78rem
+            cursor pointer
+            transition border-color 0.2s, color 0.2s, background 0.2s
+
+            &.is-active
+                border-color #ffceca
+                color #ffceca
+                background alpha(#ffceca, 0.1)
+
+            html:not(.is-mode-touch) &:hover
+                color #ffffff
+                border-color alpha(#ffffff, 0.5)
+
+// 积分 HUD（登录后右上角一直显示）
+.account-hud
+    position fixed
+    top 14px
+    right 16px
+    z-index 99999
+    display none
+    padding 6px 12px
+    border-radius 999px
+    background alpha(#000000, 0.5)
+    color #ffffff
+    font-family "Nunito", sans-serif
+    font-size 14px
+    font-weight 700
+    line-height 1
+    pointer-events none
+    text-shadow 0 1px 2px alpha(#000000, 0.6)
+
+    .account-hud-star
+        color #ffceca
+        margin-right 5px
+
+    .account-hud-creator
+        margin-left 8px
+        padding 2px 7px
+        border-radius 999px
+        background alpha(#ffceca, 0.16)
+        color #ffceca
+        font-size 11px
+        font-weight 600
+        text-transform uppercase
+        letter-spacing 0.06em
+
 // 别人头顶的昵称名牌（跟着车或人投影到屏幕上）
 .nametags
     position fixed
