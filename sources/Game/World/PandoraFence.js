@@ -10,6 +10,7 @@ export class PandoraFence
     constructor()
     {
         this.game = Game.getInstance()
+        this.owner = 'peterzhang'
 
         // Enclosed area (world units, matching the region the user highlighted).
         // The z = - 14 edge used to be pulled in that far to keep the neighbours'
