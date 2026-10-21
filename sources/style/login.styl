@@ -112,3 +112,25 @@
                 font-size 14px
                 opacity 0.7
                 margin-bottom 24px
+
+// Login notifications sit on a dark background, so their text has to be white
+.notification
+    &.is-login-bonus,
+    &.is-login-welcome,
+    &.is-login-territory
+        .top
+            .title
+                text-align left
+                color #ffffff
+                font-size 1.7rem
+                margin-bottom 0.25em
+                line-height 1em
+
+        .bottom
+            .description
+                color #ffffff
+                font-size 16px
+                line-height 1.2em
+
+        .time-bar
+            background #ffffff
