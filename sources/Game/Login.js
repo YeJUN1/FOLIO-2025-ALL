@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu'
+import gsap from 'gsap'
 import { Game } from './Game.js'
 
 /**
@@ -105,12 +106,33 @@ export class Login
         if(!this.game.player || !this.game.overlay || !this.game.physicalVehicle)
             return
 
+        // Wait for the intro to be ready before skipping it
+        if(!this.game.reveal || this.game.reveal.step === - 1)
+            return
+
         // The territory exists by now even if it didn't during the constructor
         if(this.current && this.game.territory)
             this.renderProfile()
 
         const name = this.pendingSpawn
         this.pendingSpawn = null
+
+        // Logging in counts as the intro's "start": leave the landing screen
+        // and let the game switch to the normal driving view before respawning.
+        // The intro's own circle animation takes 1.5s, so step 1 has to wait for
+        // it to finish — otherwise the two zoom animations overwrite each other
+        // and the reveal stays stuck on the intro view.
+        if(this.game.reveal.step === 0)
+        {
+            const reveal = this.game.reveal
+
+            gsap.delayedCall(1.7, () =>
+            {
+                if(reveal.step === 0)
+                    reveal.updateStep(1)
+            })
+        }
+
         this.respawnAtMember(name)
     }
 
