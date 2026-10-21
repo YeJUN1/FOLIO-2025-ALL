@@ -281,6 +281,12 @@ export class Login
 
         account.lastLoginAt = Date.now()
         store.accounts[account.key] = account
+
+        // Remember the account so a lost session key never asks for the
+        // password again (only an explicit logout clears this).
+        store.lastKey = account.key
+        store.loggedOut = false
+
         this.writeStore(store)
         localStorage.setItem(Login.SESSION_KEY, account.key)
 
@@ -333,6 +339,11 @@ export class Login
 
     logout()
     {
+        const store = this.readStore()
+        store.lastKey = null
+        store.loggedOut = true
+        this.writeStore(store)
+
         localStorage.removeItem(Login.SESSION_KEY)
         this.current = null
         this.pendingSpawn = null
@@ -343,12 +354,17 @@ export class Login
 
     restoreSession()
     {
-        const key = localStorage.getItem(Login.SESSION_KEY)
+        const store = this.readStore()
+        let key = localStorage.getItem(Login.SESSION_KEY)
+
+        // Fallback: if the session key is gone but the user never logged out,
+        // restore the last verified account so a refresh doesn't ask again.
+        if(!key && store.lastKey && store.loggedOut !== true)
+            key = store.lastKey
 
         if(!key)
             return
 
-        const store = this.readStore()
         const account = store.accounts[key]
 
         if(!account)
@@ -358,7 +374,10 @@ export class Login
         }
 
         account.lastLoginAt = Date.now()
+        store.lastKey = account.key
+        store.loggedOut = false
         this.writeStore(store)
+        localStorage.setItem(Login.SESSION_KEY, account.key)
 
         this.current = account
         this.renderProfile()
