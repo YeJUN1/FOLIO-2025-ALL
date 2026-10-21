@@ -216,6 +216,11 @@ export class Account
         return this.user ? this.user.nickname : ''
     }
 
+    getUsername()
+    {
+        return this.user ? this.user.username : ''
+    }
+
     getPoints()
     {
         return this.points

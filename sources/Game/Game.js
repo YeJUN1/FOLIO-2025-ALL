@@ -32,6 +32,7 @@ import { PhysicsWireframe } from './Physics/PhysicsWireframe.js'
 import { Zones } from './Zones.js'
 import { Territory } from './Territory.js'
 import { TerritoryFence } from './World/TerritoryFence.js'
+import { TerritoryDefense } from './World/TerritoryDefense.js'
 import { Overlay } from './Overlay.js'
 import { Tornado } from './Tornado.js'
 import { InteractivePoints } from './InteractivePoints.js'
@@ -207,6 +208,7 @@ export class Game
         this.title = new Title()
         // this.monitoring = new Monitoring()
         this.world.step(1)
+        this.territoryDefense = new TerritoryDefense()
         this.overlay = new Overlay()
 
         // Pre-render if quality high

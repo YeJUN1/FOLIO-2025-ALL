@@ -17,7 +17,8 @@ export class Territory
         this.game = Game.getInstance()
         this.items = []
         this.visible = true
-
+        this.rect = null
+        this.defense = null
         this.setFromDescription()
     }
 
@@ -39,6 +40,10 @@ export class Territory
 
         if(!description || !description.rect)
             return
+
+        // 对外暴露矩形，供导弹防御系统判定「是否进入地盘」
+        this.rect = description.rect
+        this.defense = description.defense || null
 
         // 懒加载栏杆件
         let resource
