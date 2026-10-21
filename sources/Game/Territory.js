@@ -26,6 +26,23 @@ export class Territory
             { x: - 37.2, z: - 16.2 },
         ]
         this.bounds = this.plots[0]
+
+        // Login accounts are mapped to the plot they own.
+        // Spawn is either an existing respawn name (guaranteed on solid ground)
+        // or an explicit position picked inside a fenced plot that has no respawn.
+        this.members = new Map([
+            [ '舒雯',   { plot: 0, spawnName: 'timeMachine' } ],
+            [ '须翊恒', { plot: 1, spawnName: 'landing' } ],
+            [ '唐一琳', { plot: 2, spawnName: 'behindTheScene' } ],
+            [ '丁浩宸', { plot: 3, spawn: { x: 15, z: - 60, rotation: 0 } } ],
+            [ '龚浩翔', { plot: 4, spawn: { x: - 60, z: - 5, rotation: 0 } } ],
+            [ '叶老师', { plot: 5, spawnName: 'circuit' } ],
+        ])
+
+        this.aliases = new Map([
+            [ 'elim', '唐一琳' ],
+            [ 'tanglilin', '唐一琳' ],
+        ])
     }
 
     contains(_x, _z)
@@ -34,5 +51,26 @@ export class Territory
             _x >= plot.minX && _x <= plot.maxX &&
             _z >= plot.minZ && _z <= plot.maxZ
         )
+    }
+
+    getMember(_name)
+    {
+        if(typeof _name !== 'string')
+            return null
+
+        const trimmed = _name.trim()
+        const key = trimmed.toLowerCase()
+        const resolved = this.aliases.get(key) || trimmed
+        const member = this.members.get(resolved)
+
+        if(!member)
+            return null
+
+        return {
+            name: resolved,
+            plot: this.plots[member.plot],
+            spawnName: member.spawnName || null,
+            spawn: member.spawn || null,
+        }
     }
 }

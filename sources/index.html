@@ -304,6 +304,17 @@
                                         </tr>
                                         <tr>
                                             <td>
+                                                Account
+                                            </td>
+                                            <td>
+                                                <button class="js-login-trigger button is-small has-tooltip">
+                                                    <div class="tooltip">Login / create an account</div>
+                                                    Login
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
                                                 Server
                                             </td>
                                             <td>
@@ -873,6 +884,62 @@
                     
                     </div>
                 </div>
+            </div>
+
+            <!-- Login -->
+            <div class="js-modal modal login" data-name="login">
+
+                <div class="container">
+                    <div class="content">
+
+                        <button class="js-close close">
+                            <img class="icon is-default" src="ui/close.svg" loading="lazy">
+                            <span class="icon is-xbox">A</span>
+                        </button>
+
+                        <div class="title">身份验证</div>
+                        <p class="subtitle">第一次验证成功可获得 <strong>5000 积分</strong></p>
+
+                        <div class="js-login-form login-form">
+                            <label class="field">
+                                <span class="label">名字</span>
+                                <input class="js-login-name input" type="text" maxlength="16" autocomplete="username" placeholder="例如：唐一琳">
+                            </label>
+                            <label class="field">
+                                <span class="label">密码</span>
+                                <input class="js-login-password input" type="password" maxlength="32" autocomplete="current-password" placeholder="至少 4 位">
+                            </label>
+
+                            <div class="js-login-message message"></div>
+
+                            <div class="buttons">
+                                <button class="js-login-submit button">登录</button>
+                                <button class="js-login-register button is-secondary">创建账号</button>
+                            </div>
+
+                            <p class="hint">没有账号？输入名字和密码，点「创建账号」就行。</p>
+                        </div>
+
+                        <div class="js-login-profile profile">
+                            <div class="profile-name">
+                                <span class="js-login-profile-name"></span>
+                            </div>
+                            <div class="profile-points">
+                                <span class="js-login-profile-points"></span>
+                            </div>
+                            <div class="profile-territory">
+                                <span class="js-login-profile-territory"></span>
+                            </div>
+
+                            <div class="buttons">
+                                <button class="js-login-spawn button">回到我的地盘</button>
+                                <button class="js-login-logout button is-secondary">退出登录</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
             </div>
 
             <!-- Map -->

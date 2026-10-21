@@ -51,6 +51,7 @@ import { PreRenderer } from './PreRenderer.js'
 import { Options } from './Options.js'
 import gsap from 'gsap'
 import { Map } from './Map.js'
+import { Login } from './Login.js'
 
 export class Game
 {
@@ -93,6 +94,7 @@ export class Game
         this.rayCursor = new RayCursor()
         this.viewport = new Viewport(this.domElement)
         this.modals = new Modals()
+        this.login = new Login()
         this.menu = new Menu()
         this.rendering = new Rendering()
         await this.rendering.setRenderer()
