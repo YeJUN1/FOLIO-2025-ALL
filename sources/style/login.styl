@@ -113,6 +113,78 @@
                 opacity 0.7
                 margin-bottom 24px
 
+// Account trigger, stacked under the menu and map buttons (top right)
+.account-trigger
+    display none
+    position absolute
+    right 0
+    top 120px
+    width 44px
+    height 44px
+    z-index 9
+    -webkit-user-select none
+    -moz-user-select none
+    user-select none
+
+    html.is-started &
+        display block
+
+    html.input-filter-menu &
+    html.input-filter-cinematic &
+    html.input-filter-intro &
+        pointer-events none
+
+    --hover-translate 4px
+
+    html:not(.is-mode-touch) &:hover
+        .button-inner
+            transform translateX(-4px)
+
+            &::after
+                opacity 0.8
+
+            .icon-container
+                opacity 1
+
+    .button-inner
+        position absolute
+        top 0
+        left 0
+        width calc(100% + var(--hover-translate))
+        height 100%
+        background radial-gradient(ellipse at top right, #C21515, #46123B)
+        transition transform 0.15s 0.15s
+
+        html.input-filter-menu &,
+        html.input-filter-modal &,
+        html.input-filter-intro &
+        html.input-filter-cinematic &
+            transform translateX(100%)
+            transition-delay 0
+
+        &::after
+            content: ''
+            display block
+            position absolute
+            top 3px
+            right 0
+            bottom 3px
+            left 3px
+            border 1px solid #ffffff
+            border-right none
+            opacity 0.35
+            transition opacity 0.15s
+
+        .icon-container
+            display flex
+            position absolute
+            align-items center
+            justify-content center
+            top 0
+            right 0
+            bottom 0
+            left 3px
+
 // Login notifications sit on a dark background, so their text has to be white
 .notification
     &.is-login-bonus,

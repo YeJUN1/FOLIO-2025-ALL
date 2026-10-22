@@ -86,10 +86,10 @@ export class Login
             }
         })
 
-        // Reopen from the options panel
-        const trigger = document.querySelector('.js-login-trigger')
+        // Reopen from the options panel or from the top-right account button
+        const triggers = document.querySelectorAll('.js-login-trigger, .js-account-trigger')
 
-        if(trigger)
+        for(const trigger of triggers)
         {
             trigger.addEventListener('click', () =>
             {
