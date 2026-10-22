@@ -43,6 +43,7 @@ import { Water } from './Water.js'
 import { Reveal } from './Reveal.js'
 import { KonamiCode } from './KonamiCode.js'
 import { Achievements } from './Achievements.js'
+import { Points } from './Points.js'
 import { Notifications } from './Notifications.js'
 import { Quality } from './Quality.js'
 import { Menu } from './Menu.js'
@@ -202,6 +203,7 @@ export class Game
         this.interactivePoints = new InteractivePoints()
         this.konamiCode = new KonamiCode()
         this.achievements = new Achievements()
+        this.points = new Points()
         this.tornado = new Tornado()
         this.map = new Map()
         this.title = new Title()

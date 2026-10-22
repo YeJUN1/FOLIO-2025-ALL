@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import achievementsData from '../data/achievements.js'
+import { valueFor } from './PointsConfig.js'
 import { Game } from './Game.js'
 import { timeToReadableString } from './utilities/time.js'
 import { uniform } from 'three/tsl'
@@ -14,6 +15,7 @@ export class Achievements
         this.events = new Events()
 
         this.setStorage()
+        this.migrateLegacy()
         this.setMenu()
         this.setSounds()
         this.setGroups()
@@ -22,6 +24,51 @@ export class Achievements
         this.setRewards()
         this.setReset()
 
+        this.applyStoredProgress()
+
+        this.globalProgress.update()
+        this.rewards.update()
+
+        // 切换账号：重建当前账号的成就进度（积分系统随之全量重算）
+        this.game.login?.events.on('logged-in', () => this.reload())
+        this.game.login?.events.on('logged-out', () => this.reload())
+    }
+
+    // ---- 账号作用域存储 ----
+
+    getAccountKey()
+    {
+        return this.game.login?.userKey ?? null
+    }
+
+    storageSuffix()
+    {
+        const key = this.getAccountKey()
+        return key ? ':' + key : ''
+    }
+
+    storageKey(name)
+    {
+        return name + this.storageSuffix()
+    }
+
+    // 首次登录时把旧的全局存档迁移给该账号；只迁一次，之后各账号独立
+    migrateLegacy()
+    {
+        const suffix = this.storageSuffix()
+        if(!suffix || localStorage.getItem('achievementsScopedMigrated'))
+            return
+
+        const legacy = localStorage.getItem('achievements')
+        if(legacy && !localStorage.getItem('achievements' + suffix))
+            localStorage.setItem('achievements' + suffix, legacy)
+
+        localStorage.setItem('achievementsScopedMigrated', '1')
+    }
+
+    // 把当前账号的存档静默应用到内存与 UI
+    applyStoredProgress()
+    {
         const localAchievements = this.storage.get()
 
         for(const groupName in localAchievements)
@@ -29,14 +76,19 @@ export class Achievements
             const group = this.groups.get(groupName)
 
             if(group)
-            {
-                const progress = localAchievements[ groupName ]
-                group.setProgress(progress, true)
-            }
+                group.setProgress(localAchievements[ groupName ], true)
         }
+    }
 
+    // 切号：清空内存进度，再按新账号存档重放（静默，不弹通知）
+    reload()
+    {
+        this.groups.forEach(group => group.reset())
+        this.applyStoredProgress()
         this.globalProgress.update()
         this.rewards.update()
+
+        this.events.trigger('loaded')
     }
 
     setStorage()
@@ -61,17 +113,22 @@ export class Achievements
             })
 
             const encodedData = JSON.stringify(data)
-            localStorage.setItem('achievements', encodedData)
+            localStorage.setItem(this.storageKey('achievements'), encodedData)
         }
 
         this.storage.get = () =>
         {
-            const localAchievements = localStorage.getItem('achievements')
+            try
+            {
+                const localAchievements = localStorage.getItem(this.storageKey('achievements'))
+                const parsed = localAchievements ? JSON.parse(localAchievements) : null
 
-            if(localAchievements)
-                return JSON.parse(localAchievements)
-
-            return {}
+                return parsed && typeof parsed === 'object' ? parsed : {}
+            }
+            catch
+            {
+                return {}
+            }
         }
     }
 
@@ -92,7 +149,7 @@ export class Achievements
         this.globalProgress.timeStart = 0
         this.globalProgress.timeEnd = 0
 
-        let localTimeStart = localStorage.getItem('achievementsTimeStart')
+        let localTimeStart = localStorage.getItem(this.storageKey('achievementsTimeStart'))
         if(localTimeStart)
         {
             localTimeStart = parseFloat(localTimeStart)
@@ -101,7 +158,7 @@ export class Achievements
                 this.globalProgress.timeStart = localTimeStart
         }
 
-        let localTimeEnd = localStorage.getItem('achievementsTimeEnd')
+        let localTimeEnd = localStorage.getItem(this.storageKey('achievementsTimeEnd'))
         if(localTimeEnd)
         {
             localTimeEnd = parseFloat(localTimeEnd)
@@ -134,10 +191,10 @@ export class Achievements
                 if(!this.globalProgress.achieved)
                 {
                     // Not already ended
-                    if(!localStorage.getItem('achievementsTimeEnd'))
+                    if(!localStorage.getItem(this.storageKey('achievementsTimeEnd')))
                     {
                         this.globalProgress.timeEnd = this.game.player.timePlayed.all
-                        localStorage.setItem('achievementsTimeEnd', this.globalProgress.timeEnd)
+                        localStorage.setItem(this.storageKey('achievementsTimeEnd'), this.globalProgress.timeEnd)
                     }
 
                     this.globalProgress.timeElement.textContent = timeToReadableString(this.globalProgress.timeEnd - this.globalProgress.timeStart)
@@ -157,8 +214,8 @@ export class Achievements
 
             this.globalProgress.timeStart = this.game.player.timePlayed.all
             this.globalProgress.timeEnd = 0
-            localStorage.setItem('achievementsTimeStart', this.globalProgress.timeStart)
-            localStorage.removeItem('achievementsTimeEnd')
+            localStorage.setItem(this.storageKey('achievementsTimeStart'), this.globalProgress.timeStart)
+            localStorage.removeItem(this.storageKey('achievementsTimeEnd'))
             
             this.globalProgress.element.classList.remove('is-achieved')
         }
@@ -208,7 +265,7 @@ export class Achievements
         // Current
         this.rewards.current = this.rewards.default
 
-        const localRewardName = localStorage.getItem('achievementsReward')
+        const localRewardName = localStorage.getItem(this.storageKey('achievementsReward'))
         if(localRewardName)
         {
             const item = this.rewards.items.get(localRewardName)
@@ -239,7 +296,7 @@ export class Achievements
                 this.events.trigger('rewardActiveChange', [ this.rewards.current ])
 
                 // Save
-                localStorage.setItem('achievementsReward', item.name)
+                localStorage.setItem(this.storageKey('achievementsReward'), item.name)
 
                 return true
             }
@@ -399,14 +456,21 @@ export class Achievements
         {
             const achievement = {
                 total,
-                achieved: false
+                achieved: false,
+                title,
+                groupName: name
             }
             const group = this.groups.get(name)
             group.items.push(achievement)
 
+            const points = valueFor(total)
+
             // HTML
             const html = /* html */`
-                <div class="title">${title}</div>
+                <div class="head">
+                    <div class="title">${title}</div>
+                    <div class="points-value">+${points}</div>
+                </div>
                 <div class="description">
                     <div class="text">${description}</div>
                     <div class="progress">
@@ -452,13 +516,17 @@ export class Achievements
                     this.sounds.achieve.play()
 
                     // Notification
+                    const earned = valueFor(total)
                     const html = /* html */`
                         <div class="top">
                             <div class="title">${title}</div>
-                            <div class="progress">
-                                <div class="check-icon"></div>
-                                <span class="check"></span>
-                                <span class="current">${total}</span> / <span>${total}</span>
+                            <div class="earned">
+                                <span class="points-value">+${earned}</span>
+                                <div class="progress">
+                                    <div class="check-icon"></div>
+                                    <span class="check"></span>
+                                    <span class="current">${total}</span> / <span>${total}</span>
+                                </div>
                             </div>
                         </div>
                         <div class="bottom">
@@ -476,6 +544,9 @@ export class Achievements
                             this.game.menu.open('achievements')
                         }
                     )
+
+                    // 通知积分系统（Game/Points.js）：新达成一个成就 → 折算积分并刷新 HUD
+                    this.events.trigger('achieved', [ achievement ])
                 }
             }
         }
@@ -611,6 +682,9 @@ export class Achievements
 
         if(this.game.world.snow)
             this.game.world.snow.achievementAchieved = false
+
+        // 成就全部重置后，积分随之归零（Game/Points.js 会重算）
+        this.events.trigger('reset')
     }
 
     // achieveAll()

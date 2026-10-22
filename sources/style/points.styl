@@ -1,0 +1,349 @@
+// Points HUD badge (top-left corner): 积分 + 等级，随成就派生
+.points
+    display none
+    position absolute
+    left 0
+    top 70px
+    z-index 9
+    padding 10px 14px 12px
+    border-radius 0 8px 8px 0
+    border 1px solid alpha(#ffffff, 0.35)
+    border-left none
+    background radial-gradient(ellipse at top left, #251f2b, #1d1721)
+    color #ffffff
+    min-width 140px
+    -webkit-user-select none
+    -moz-user-select none
+    user-select none
+    pointer-events none
+
+    html.is-started &
+        display block
+
+    // 与其它 HUD 触发器一致：菜单 / 弹窗 / 过场 / intro 期间隐藏
+    html.input-filter-menu &
+    html.input-filter-modal &
+    html.input-filter-cinematic &
+    html.input-filter-intro &
+        opacity 0
+        visibility hidden
+
+    transition opacity 0.15s
+
+    .row
+        display flex
+        justify-content space-between
+        align-items baseline
+        gap 10px
+        margin-bottom 2px
+
+    .tier
+        font-family 'Amatic SC', cursive
+        font-size 1.2rem
+        font-weight 700
+        letter-spacing 1px
+        color alpha(#ffffff, 0.85)
+
+    .level
+        font-size 0.7rem
+        color alpha(#ffffff, 0.6)
+
+    .level-number
+        font-weight 700
+        color #ffffff
+
+    .score
+        display flex
+        align-items center
+        gap 6px
+        font-family 'Pally-Medium', sans-serif
+        font-size 1.5rem
+        line-height 1
+
+        .star
+            color #ffcf5c
+
+        .value
+            font-weight 700
+
+    .gain
+        position absolute
+        right 14px
+        top 26px
+        font-size 1rem
+        font-weight 700
+        color #7bf0a4
+        opacity 0
+
+        &.is-showing
+            animation points-gain 1s ease-out
+
+    .bar
+        position relative
+        margin-top 8px
+        height 6px
+        border-radius 3px
+        overflow hidden
+        background alpha(#ffffff, 0.15)
+
+    .bar-fill
+        position absolute
+        inset 0
+        transform-origin left center
+        transform scaleX(0)
+        border-radius 3px
+        background linear-gradient(90deg, #ffcf5c, #ff9d5c)
+        transition transform 0.5s ease
+
+    // 距下一级还差多少分
+    .next
+        margin-top 4px
+        font-size 0.6rem
+        color alpha(#ffffff, 0.45)
+
+        &:empty
+            display none
+
+    // 角标可点击：展开明细 / 排行榜
+    .badge
+        pointer-events auto
+        cursor pointer
+        outline none
+
+        &:focus-visible
+            box-shadow 0 0 0 2px alpha(#ffcf5c, 0.6)
+
+        &:hover .hint
+            color alpha(#ffffff, 0.65)
+
+    .hint
+        margin-top 6px
+        font-size 0.55rem
+        letter-spacing 1px
+        text-transform uppercase
+        color alpha(#ffffff, 0.35)
+        transition color 0.15s
+
+    // 展开面板
+    .panel
+        display none
+        position absolute
+        top calc(100% + 8px)
+        left 0
+        z-index 2
+        width 280px
+        max-width calc(100vw - 24px)
+        max-height 52vh
+        pointer-events auto
+        border 1px solid alpha(#ffffff, 0.25)
+        border-radius 8px
+        background radial-gradient(ellipse at top left, #251f2b, #1d1721)
+        box-shadow 0 14px 34px alpha(#000000, 0.5)
+        overflow hidden
+
+    &.is-open .panel
+        display flex
+        flex-direction column
+
+    .panel-top
+        display flex
+        align-items center
+        justify-content space-between
+        gap 10px
+        padding 8px 10px
+        border-bottom 1px solid alpha(#ffffff, 0.12)
+
+    .tabs
+        display flex
+        gap 4px
+
+    .tab
+        padding 4px 8px
+        border none
+        border-radius 4px
+        background none
+        color alpha(#ffffff, 0.55)
+        font-family 'Pally-Medium', sans-serif
+        font-size 0.7rem
+        letter-spacing 0.5px
+        text-transform uppercase
+        cursor pointer
+        pointer-events auto
+
+        &:hover
+            color #ffffff
+
+        &.is-active
+            background alpha(#ffcf5c, 0.16)
+            color #ffcf5c
+
+    .close
+        width 22px
+        height 22px
+        padding 0
+        border none
+        border-radius 4px
+        background none
+        color alpha(#ffffff, 0.55)
+        font-size 1.1rem
+        line-height 1
+        cursor pointer
+        pointer-events auto
+
+        &:hover
+            background alpha(#ffffff, 0.1)
+            color #ffffff
+
+    .panel-scroll
+        flex 1
+        min-height 0
+        overflow-y auto
+        padding 10px
+        -webkit-overflow-scrolling touch
+
+    .pane[hidden]
+        display none
+
+    .summary
+        margin-bottom 8px
+        padding 8px 10px
+        border-radius 6px
+        background alpha(#ffffff, 0.06)
+
+    .summary-score
+        font-family 'Pally-Medium', sans-serif
+        font-size 1.35rem
+        font-weight 700
+        color #ffcf5c
+
+        span
+            font-size 0.8rem
+            color alpha(#ffffff, 0.45)
+
+    .summary-meta
+        margin-top 2px
+        font-size 0.65rem
+        color alpha(#ffffff, 0.45)
+
+    .list
+        display flex
+        flex-direction column
+
+    .item
+        display flex
+        align-items center
+        gap 8px
+        padding 5px 2px
+        border-bottom 1px solid alpha(#ffffff, 0.06)
+        font-size 0.72rem
+        color alpha(#ffffff, 0.45)
+        opacity 0.75
+
+        &:last-child
+            border-bottom none
+
+        &.is-achieved
+            color alpha(#ffffff, 0.9)
+            opacity 1
+
+            .dot
+                background #ffcf5c
+                box-shadow 0 0 6px alpha(#ffcf5c, 0.7)
+
+            .value
+                color #7bf0a4
+
+    .dot
+        flex none
+        width 6px
+        height 6px
+        border-radius 50%
+        background alpha(#ffffff, 0.2)
+
+    .item .name
+        flex 1
+        overflow hidden
+        white-space nowrap
+        text-overflow ellipsis
+
+    .item .value
+        flex none
+        font-weight 700
+        color alpha(#ffffff, 0.4)
+
+    .board-row
+        display grid
+        grid-template-columns 20px 1fr auto
+        grid-template-areas 'rank name value' 'rank tier value'
+        align-items center
+        column-gap 8px
+        padding 6px 4px
+        border-radius 4px
+        font-size 0.72rem
+
+        &.is-current
+            background alpha(#ffcf5c, 0.12)
+
+            .name
+                color #ffcf5c
+                font-weight 700
+
+        .rank
+            grid-area rank
+            color alpha(#ffffff, 0.4)
+            font-size 0.65rem
+            text-align center
+
+        .name
+            grid-area name
+            overflow hidden
+            white-space nowrap
+            text-overflow ellipsis
+            color alpha(#ffffff, 0.85)
+
+        .tier
+            grid-area tier
+            font-size 0.6rem
+            color alpha(#ffffff, 0.4)
+
+        .value
+            grid-area value
+            font-family 'Pally-Medium', sans-serif
+            font-weight 700
+            color #ffcf5c
+
+    .note
+        margin-top 8px
+        font-size 0.6rem
+        text-align center
+        color alpha(#ffffff, 0.35)
+
+    .empty
+        padding 18px 0
+        font-size 0.72rem
+        text-align center
+        color alpha(#ffffff, 0.35)
+
+    // 升级瞬间的高亮描边脉冲
+    &.is-up
+        animation points-up 1.4s ease-out
+
+@keyframes points-gain
+    0%
+        opacity 0
+        transform translateY(6px)
+    20%
+        opacity 1
+    100%
+        opacity 0
+        transform translateY(-14px)
+
+@keyframes points-up
+    0%
+        border-color alpha(#ffcf5c, 1)
+        box-shadow 0 0 0 alpha(#ffcf5c, 0)
+    30%
+        box-shadow 0 0 22px alpha(#ffcf5c, 0.6)
+    100%
+        border-color alpha(#ffffff, 0.35)
+        box-shadow 0 0 0 alpha(#ffcf5c, 0)
