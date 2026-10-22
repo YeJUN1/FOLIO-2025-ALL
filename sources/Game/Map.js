@@ -18,6 +18,8 @@ export class Map
         {
             if(!this.initiated)
                 this.init()
+            else
+                this.updateOwnership()
 
             this.texture.update()
         })
@@ -27,7 +29,9 @@ export class Map
     {
         this.initiated = true
         
+        this.setTerritoryOverlay()
         this.setLocations()
+        this.updateOwnership()
         this.setPlayer()
         this.setTexture()
 
@@ -60,6 +64,8 @@ export class Map
             const respawn = this.game.respawns.getByName(item.respawnName)
             const mapPosition = this.worldToMap(respawn.position)
 
+            item.worldPosition = { x: respawn.position.x, z: respawn.position.z }
+
             // HTML
             const html = /* html */`
                 <div class="pin"></div>
@@ -76,15 +82,111 @@ export class Map
             element.style.zIndex = Math.round(mapPosition.y * 1000)
             
             this.element.append(element)
+            item.element = element
 
             element.addEventListener('click', () =>
             {
+                // Locations inside another player's plot are off limits
+                if(item.locked)
+                {
+                    this.game.notifications.show(
+                        /* html */`
+                            <div class="title">不能进入</div>
+                            <div class="description">这里是 ${item.ownerName} 的地盘</div>
+                        `,
+                        'map-locked',
+                        4
+                    )
+                    return
+                }
+
                 this.game.player.respawn(item.respawnName, () =>
                 {
                     this.game.view.focusPoint.isTracking = true
                 })
                 this.game.modals.close()
             })
+        }
+    }
+
+    setTerritoryOverlay()
+    {
+        this.territoryOverlay = document.createElement('div')
+        this.territoryOverlay.classList.add('territory-overlay')
+        this.territoryOverlay.innerHTML = /* html */`
+            <div class="label"></div>
+        `
+        this.territoryLabel = this.territoryOverlay.querySelector('.label')
+        this.element.append(this.territoryOverlay)
+    }
+
+    getPlotAt(_position)
+    {
+        const territory = this.game.territory
+
+        if(!territory || !territory.plots)
+            return null
+
+        return territory.plots.find((plot) =>
+            _position.x >= plot.minX && _position.x <= plot.maxX &&
+            _position.z >= plot.minZ && _position.z <= plot.maxZ
+        ) || null
+    }
+
+    getPlotOwner(_plot)
+    {
+        const territory = this.game.territory
+
+        if(!territory || !territory.members)
+            return null
+
+        for(const [ name, member ] of territory.members)
+        {
+            if(territory.plots[member.plot] === _plot)
+                return name
+        }
+
+        return null
+    }
+
+    updateOwnership()
+    {
+        if(!this.territoryOverlay || !this.locations)
+            return
+
+        const login = this.game.login
+        const accountName = login && login.current ? login.current.name : null
+        const member = accountName ? this.game.territory.getMember(accountName) : null
+        const myPlot = member ? member.plot : null
+
+        // My plot is a translucent area drawn under the pins
+        if(myPlot)
+        {
+            const topLeft = this.worldToMap({ x: myPlot.minX, z: myPlot.minZ })
+            const bottomRight = this.worldToMap({ x: myPlot.maxX, z: myPlot.maxZ })
+
+            this.territoryOverlay.style.left = `${topLeft.x * 100}%`
+            this.territoryOverlay.style.top = `${topLeft.y * 100}%`
+            this.territoryOverlay.style.width = `${(bottomRight.x - topLeft.x) * 100}%`
+            this.territoryOverlay.style.height = `${(bottomRight.y - topLeft.y) * 100}%`
+            this.territoryOverlay.style.display = 'block'
+            this.territoryLabel.textContent = `${member.name} 的地盘`
+        }
+        else
+        {
+            this.territoryOverlay.style.display = 'none'
+        }
+
+        // Pins standing inside someone else's plot can't be clicked
+        for(const item of this.locations.items)
+        {
+            const plot = this.getPlotAt(item.worldPosition)
+            const ownerName = plot ? this.getPlotOwner(plot) : null
+            const isMine = !!member && ownerName === member.name
+
+            item.ownerName = ownerName
+            item.locked = !!accountName && !!ownerName && !isMine
+            item.element.classList.toggle('is-locked', item.locked)
         }
     }
     
