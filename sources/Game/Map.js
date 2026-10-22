@@ -91,8 +91,12 @@ export class Map
                 {
                     this.game.notifications.show(
                         /* html */`
-                            <div class="title">不能进入</div>
-                            <div class="description">这里是 ${item.ownerName} 的地盘</div>
+                            <div class="top">
+                                <div class="title">不能进入</div>
+                            </div>
+                            <div class="bottom">
+                                <div class="description">这里是 ${item.ownerName} 的地盘</div>
+                            </div>
                         `,
                         'map-locked',
                         4
