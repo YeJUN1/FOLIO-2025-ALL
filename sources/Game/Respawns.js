@@ -35,6 +35,14 @@ export class Respawns
 
             this.items.set(name, item)
         }
+
+        // 「划地盘」额外命名出生点：落在各地块的陆地中心（坐标取自 terrain.glb 高度采样，见 docs/划地盘.md）
+        // 供 .env 的 VITE_PLAYER_SPAWN 或地图传送使用；y 由物理自由落体到地面，此处给 4 即可
+        this.items.set('territoryChenAilin', {
+            name: 'territoryChenAilin',
+            position: new THREE.Vector3(-51, 4, 21),
+            rotation: 0,
+        })
     }
 
     getByName(name)

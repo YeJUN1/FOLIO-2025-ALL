@@ -8,6 +8,8 @@ export class Map
         this.game = Game.getInstance()
 
         this.initiated = false
+        this.pendingTerritoryLabels = []
+        this.territoryLabelElements = []
         this.modal = this.game.modals.items.get('map')
         this.element = this.modal.element.querySelector('.js-map-container')
 
@@ -31,10 +33,41 @@ export class Map
         this.setPlayer()
         this.setTexture()
 
+        // 补画 init 之前登记过的领地标注（Territory 异步数据可能早于地图初始化）
+        for(const territory of this.pendingTerritoryLabels)
+            this.addTerritoryLabel(territory)
+        this.pendingTerritoryLabels = []
+
         this.game.ticker.events.on('tick', () =>
         {
             this.update()
         }, 14)
+    }
+
+    /**
+     * 「划地盘」领地名字标注：在矩形中心加一个常驻名牌，随地图数据（territory.json）
+     * 同步给所有玩家（共享同一份 static 资源）
+     */
+    addTerritoryLabel(_territory)
+    {
+        if(!this.initiated)
+        {
+            this.pendingTerritoryLabels.push(_territory)
+            return
+        }
+
+        const rect = _territory.rect
+        const center = this.worldToMap({ x: (rect.minX + rect.maxX) / 2, z: (rect.minZ + rect.maxZ) / 2 })
+
+        const element = document.createElement('div')
+        element.classList.add('territory-label')
+        element.innerHTML = /* html */`<div class="name">${_territory.name}</div>`
+        element.style.left = `${center.x * 100}%`
+        element.style.top = `${center.y * 100}%`
+        element.style.zIndex = Math.round(center.y * 1000)
+
+        this.element.append(element)
+        this.territoryLabelElements.push(element)
     }
 
     setLocations()

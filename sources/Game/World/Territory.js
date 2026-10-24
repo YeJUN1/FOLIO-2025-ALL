@@ -4,11 +4,12 @@ import { Game } from '../Game.js'
 /**
  * 「划地盘」领地围栏（数据驱动、纯视觉）
  * 读取 static/territory/territory.json，把 static/territory/fence.glb（竖立的木板栏杆件，
- * 宽沿局部 X、底面在 y=0）沿红框矩形四周首尾相接摆成一圈，作为"我的地盘"边界。
+ * 宽沿局部 X、底面在 y=0）沿每块领地矩形四周首尾相接摆成一圈，并在游戏地图（M 键）
+ * 上为每块领地加上主人名字标注（所有人共享同一份 static 数据，天然同步）。
  *
  * - 每件用 physics 射线贴地（复用 Floor.js 的 heightfield 碰撞体），落不到地面时兜底到水面高度
  * - 纯视觉：模型名不含 physical，addFromModel 不创建碰撞体，玩家可穿过（性能与实现最简）
- * - 改围栏范围/密度：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
+ * - 改围栏范围/密度/领地列表：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
  */
 export class Territory
 {
@@ -40,6 +41,9 @@ export class Territory
         if(!description || !description.rect)
             return
 
+        // 领地列表：territories 数组优先，兼容旧版单 rect（视作无名领地，只围不标）
+        const territories = description.territories ?? [{ rect: description.rect, fence: true, label: false }]
+
         // 懒加载栏杆件
         let resource
         try
@@ -64,10 +68,19 @@ export class Territory
         const scale = description.scale ?? 1
         const step = pieceLength * scale * (description.overlap ?? 1)
 
-        const points = this.getPerimeterPoints(description.rect, step)
+        for(const territory of territories)
+        {
+            if(territory.fence ?? true)
+            {
+                const points = this.getPerimeterPoints(territory.rect, step)
 
-        for(const point of points)
-            this.addSegment(resource.scene, point, scale, description)
+                for(const point of points)
+                    this.addSegment(resource.scene, point, scale, description)
+            }
+
+            if((territory.label ?? true) && territory.name && this.game.map)
+                this.game.map.addTerritoryLabel(territory)
+        }
 
         this.setDebug()
     }

@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="810" viewBox="-6 -28 912 810" font-family="PingFang SC, Helvetica, sans-serif">
+  <!-- 世界坐标 x/z ∈ [-96,96] 以 4px/米 映射到 768×768 像素：px=(x+96)*4, py=(z+96)*4，z 越大越靠下（与游戏地图一致） -->
+  <defs>
+    <pattern id="hatchSea" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="#e8f1f8"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#bcd6ec" stroke-width="1.5"/>
+    </pattern>
+    <pattern id="hatchFence" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="none"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#b0733a" stroke-width="2.5"/>
+    </pattern>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="384" y="-8" text-anchor="middle" font-size="20" font-weight="bold" fill="#222">划地盘平面图（世界坐标 192m × 192m · 4px/米）</text>
+
+  <!-- 底色：可通行陆地 -->
+  <rect x="0" y="0" width="768" height="768" fill="#f4f1ea"/>
+  <!-- 海面示意（装饰，近似）：西岸 + 左下角 + 右下角 -->
+  <rect x="0" y="0" width="40" height="568" fill="url(#hatchSea)" opacity="0.4" stroke="none"/>
+  <rect x="0" y="600" width="140" height="168" fill="url(#hatchSea)" opacity="0.5" stroke="none"/>
+  <rect x="560" y="600" width="208" height="168" fill="url(#hatchSea)" opacity="0.5" stroke="none"/>
+
+  <!-- 网格：每 24m（=96px） -->
+  <g stroke="#d8d3c8" stroke-width="1">
+    <line x1="96" y1="0" x2="96" y2="768"/><line x1="192" y1="0" x2="192" y2="768"/><line x1="288" y1="0" x2="288" y2="768"/><line x1="384" y1="0" x2="384" y2="768" stroke-width="1.6"/><line x1="480" y1="0" x2="480" y2="768"/><line x1="576" y1="0" x2="576" y2="768"/><line x1="672" y1="0" x2="672" y2="768"/>
+    <line x1="0" y1="96" x2="768" y2="96"/><line x1="0" y1="192" x2="768" y2="192"/><line x1="0" y1="288" x2="768" y2="288"/><line x1="0" y1="384" x2="768" y2="384" stroke-width="1.6"/><line x1="0" y1="480" x2="768" y2="480"/><line x1="0" y1="576" x2="768" y2="576"/><line x1="0" y1="672" x2="768" y2="672"/>
+  </g>
+
+  <!-- ===== 舒雯：西北角 x[-96,-37.2] z[-96,-16.2] → px x[0,235.2] y[0,319.2] ===== -->
+  <rect x="0" y="0" width="235.2" height="319.2" fill="rgba(183,28,28,0.12)" stroke="#b71c1c" stroke-width="3"/>
+  <text x="118" y="150" text-anchor="middle" font-size="16" font-weight="bold" fill="#b71c1c">舒雯 · 我的地盘</text>
+  <text x="118" y="172" text-anchor="middle" font-size="10" fill="#b71c1c">x[-96,-37.2] z[-96,-16.2] · 石栏</text>
+  <!-- 东边界线 x=-37.2 -->
+  <line x1="235.2" y1="238.8" x2="235.2" y2="319.2" stroke="#b71c1c" stroke-width="5"/>
+
+  <!-- ===== 须翊恒：右下角 x[18.6,95.1] z[26.3,94.4] → px x[458.4,764.4] y[489.2,761.6] ===== -->
+  <rect x="458.4" y="489.2" width="306" height="272.4" fill="rgba(46,125,50,0.12)"/>
+  <rect x="458.4" y="489.2" width="306" height="272.4" fill="url(#hatchFence)" opacity="0.3"/>
+  <rect x="458.4" y="489.2" width="306" height="272.4" fill="none" stroke="#2e7d32" stroke-width="3" stroke-dasharray="6 3"/>
+  <text x="611" y="612" text-anchor="middle" font-size="16" font-weight="bold" fill="#2e7d32">须翊恒 · 右下角</text>
+  <text x="611" y="632" text-anchor="middle" font-size="10" fill="#2e7d32">x[18.6,95.1] z[26.3,94.4] · 140 根栏杆</text>
+  <!-- 橙色建筑示意 -->
+  <rect x="560" y="648" width="40" height="32" fill="#ef8f2f" stroke="#a4610f"/>
+  <text x="580" y="694" text-anchor="middle" font-size="9" fill="#a4610f">橙色建筑</text>
+
+  <!-- ===== 陈艾琳：西部中段 + 中部偏西（放大版）x[-96,-12] z[-6,46] → px x[0,336] y[360,568] ===== -->
+  <rect x="0" y="360" width="336" height="208" fill="rgba(0,105,92,0.15)"/>
+  <rect x="0" y="360" width="336" height="208" fill="url(#hatchFence)" opacity="0.3"/>
+  <rect x="0" y="360" width="336" height="208" fill="none" stroke="#00695c" stroke-width="3" stroke-dasharray="6 3"/>
+  <text x="168" y="456" text-anchor="middle" font-size="16" font-weight="bold" fill="#004d40">陈艾琳 · 我的地盘</text>
+  <text x="168" y="476" text-anchor="middle" font-size="10" fill="#004d40">x[-96,-12] z[-6,46] · 84m×52m · 已围木栏</text>
+  <!-- 出生点标记 -->
+  <g>
+    <circle cx="180" cy="468" r="6" fill="#00e676" stroke="#004d40" stroke-width="2"/>
+    <text x="190" y="464" font-size="10" fill="#004d40">出生点 (-51, 21)</text>
+  </g>
+  <!-- 与舒雯的缓冲带示意 -->
+  <text x="168" y="352" text-anchor="middle" font-size="9" fill="#8a8a8a">↕ 与舒雯拉开 ≈10m 缓冲带（不再并排）</text>
+
+  <!-- ===== 叶老师：XXX 未标定（示意，中部） ===== -->
+  <rect x="304" y="120" width="120" height="120" fill="none" stroke="#7b1fa2" stroke-width="3" stroke-dasharray="8 6"/>
+  <text x="364" y="172" text-anchor="middle" font-size="14" font-weight="bold" fill="#7b1fa2">叶老师</text>
+  <text x="364" y="192" text-anchor="middle" font-size="11" fill="#7b1fa2">正方形 XXX（待标定）</text>
+
+  <!-- ===== 10-13 左下角红框（仅标定，未划为地盘）x[-95.6,-73.8] z[74.9,96] ===== -->
+  <rect x="1.6" y="683.6" width="88.8" height="84.4" fill="none" stroke="#ef3b24" stroke-width="2.5"/>
+  <text x="96" y="728" font-size="10" fill="#ef3b24">10-13 红框（海面，未划）</text>
+
+  <!-- ===== 剩余空白 ===== -->
+  <text x="620" y="120" text-anchor="middle" font-size="13" fill="#8a8a8a">① 东北角 · 最大空白陆地</text>
+  <text x="180" y="640" text-anchor="middle" font-size="13" fill="#8a8a8a">② 左下角大区</text>
+  <text x="470" y="300" text-anchor="middle" font-size="13" fill="#8a8a8a">③ 中部核心区</text>
+
+  <!-- 地标 pin -->
+  <g font-size="10" fill="#333">
+    <circle cx="220.8" cy="206.4" r="5" fill="#1976d2"/>
+    <text x="229" y="204">Circuit 环路 (-40.8, -44.4)</text>
+    <circle cx="683.2" cy="327.6" r="5" fill="#1976d2"/>
+    <text x="677" y="322" text-anchor="end">Altar 祭坛 (74.8, -14.1)</text>
+  </g>
+
+  <!-- 边框与坐标刻度 -->
+  <rect x="0" y="0" width="768" height="768" fill="none" stroke="#333" stroke-width="2"/>
+  <g font-size="10" fill="#555" text-anchor="middle">
+    <text x="0" y="-6">-96</text><text x="96" y="-6">-72</text><text x="192" y="-6">-48</text><text x="288" y="-6">-24</text><text x="384" y="-6">0</text><text x="480" y="-6">24</text><text x="576" y="-6">48</text><text x="672" y="-6">72</text><text x="760" y="-6">96 (x)</text>
+  </g>
+  <g font-size="10" fill="#555">
+    <text x="774" y="4">-96</text><text x="774" y="196">-48</text><text x="774" y="388">0</text><text x="774" y="580">48</text><text x="774" y="772">96 (z↓)</text>
+  </g>
+
+  <!-- 图例 -->
+  <g transform="translate(8,780)" font-size="11">
+    <rect x="0" y="0" width="18" height="12" fill="rgba(183,28,28,0.12)" stroke="#b71c1c" stroke-width="2"/><text x="24" y="10">舒雯（西北角·石栏）</text>
+    <rect x="176" y="0" width="18" height="12" fill="rgba(46,125,50,0.12)" stroke="#2e7d32" stroke-width="2" stroke-dasharray="3 2"/><text x="200" y="10">须翊恒（右下角·木栏）</text>
+    <rect x="356" y="0" width="18" height="12" fill="none" stroke="#7b1fa2" stroke-width="2" stroke-dasharray="5 3"/><text x="380" y="10">叶老师（XXX 待标定）</text>
+    <rect x="516" y="0" width="18" height="12" fill="rgba(0,105,92,0.15)" stroke="#00695c" stroke-width="2" stroke-dasharray="3 2"/><text x="540" y="10">陈艾琳（西部+中部·木栏+名牌）</text>
+    <circle cx="740" cy="6" r="4" fill="#1976d2"/><text x="750" y="10">地标</text>
+    <circle cx="800" cy="6" r="4" fill="#00e676" stroke="#004d40"/><text x="810" y="10">出生点</text>
+  </g>
+</svg>

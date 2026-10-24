@@ -328,3 +328,24 @@
                     
                     @media only screen and (max-width 520px)
                         display initial
+
+    // 「划地盘」领地主人名牌（常驻显示，矩形中心，木色底呼应木质围栏）
+    .territory-label
+        position absolute
+        transform translate(-50%, -50%)
+        pointer-events none
+
+        .name
+            background #5d4037
+            border 2px solid #251f2b
+            text-transform uppercase
+            color #ffffff
+            padding 3px 8px
+            letter-spacing 2px
+            text-align center
+            white-space nowrap
+            box-shadow 0 0 6px #00000077
+
+            @media only screen and (max-width 520px)
+                padding 2px 5px
+                letter-spacing 1px
