@@ -51,6 +51,7 @@ import { PreRenderer } from './PreRenderer.js'
 import { Options } from './Options.js'
 import gsap from 'gsap'
 import { Map } from './Map.js'
+import { Train } from './World/Train.js'
 
 export class Game
 {
@@ -202,6 +203,7 @@ export class Game
         this.interactivePoints = new InteractivePoints()
         this.konamiCode = new KonamiCode()
         this.achievements = new Achievements()
+        this.train = new Train()
         this.tornado = new Tornado()
         this.map = new Map()
         this.title = new Title()
@@ -222,6 +224,111 @@ export class Game
         if(this.debug.active)
         {
             this.achievements.setProgress('debug', 1)
+        }
+
+        // === 火车站台 InteractivePoint ===
+        const stationPose = this.train.trackPath.getPoseAt(0)
+        // 站台放在铁轨外侧（tangent 的 side 方向），离铁轨 2m
+        const stationPosition = stationPose.position.clone()
+        stationPosition.y += 0.5
+        {
+            const up = new THREE.Vector3(0, 1, 0)
+            const side = new THREE.Vector3().crossVectors(stationPose.tangent, up).normalize()
+            stationPosition.add(side.multiplyScalar(2))
+        }
+
+        this.trainBoarded = false
+        this.trainBoardedInteractHandler = null
+        this.trainStationPoint = this.interactivePoints.create(
+            stationPosition,
+            'Train Station — 按 E 上车',
+            InteractivePoints.ALIGN_LEFT,
+            InteractivePoints.STATE_CONCEALED,
+            () =>
+            {
+                this.trainBoardToggle()
+            }
+        )
+    }
+
+    trainBoardToggle()
+    {
+        if(!this.trainBoarded)
+        {
+            // === 上车 ===
+            this.trainBoarded = true
+
+            // 停掉物理车辆控制
+            this.physicalVehicle.deactivate()
+            this.player.state = Player.STATE_LOCKED
+            this.character.active = false
+            this.character.object3D.visible = false
+
+            // Camera 挂到火车座舱
+            this.train.attachCamera(this.view.camera)
+
+            // 火车启动
+            this.train.setRunning(true)
+
+            // 隐藏站台 InteractivePoint
+            this.trainStationPoint.hide()
+
+            // 注册全局 E 键监听（绕过 InteractivePoints 距离检查），按一下就下车
+            this.trainBoardedInteractHandler = () =>
+            {
+                if(this.trainBoarded)
+                    this.trainBoardToggle()
+            }
+            this.inputs.events.on('interact', this.trainBoardedInteractHandler)
+            this.inputs.interactiveButtons.events.on('interact', this.trainBoardedInteractHandler)
+
+            this.notifications.show(/* html */`
+                <div class="top"><div class="title">🚆 上车！</div></div>
+                <div class="bottom"><div class="description">火车开始绕岛一圈 · 按 E 下车</div></div>
+            `, '', 3)
+        }
+        else
+        {
+            // === 下车 ===
+            this.trainBoarded = false
+
+            // 解绑下车监听
+            if(this.trainBoardedInteractHandler)
+            {
+                this.inputs.events.off('interact', this.trainBoardedInteractHandler)
+                this.inputs.interactiveButtons.events.off('interact', this.trainBoardedInteractHandler)
+                this.trainBoardedInteractHandler = null
+            }
+
+            // Camera 恢复
+            this.train.detachCamera(this.view.camera)
+
+            // 火车停车
+            this.train.setRunning(false)
+
+            // 恢复物理车辆控制
+            this.physicalVehicle.activate()
+            this.player.state = Player.STATE_DEFAULT
+
+            // 恢复车辆位置到当前位置（火车停处）的轨道边
+            const exitPose = this.train.trackPath.getPoseAt(this.train.t)
+            const exitPos = exitPose.position.clone()
+            exitPos.y += 0.5
+            {
+                const up = new THREE.Vector3(0, 1, 0)
+                const side = new THREE.Vector3().crossVectors(exitPose.tangent, up).normalize()
+                exitPos.add(side.multiplyScalar(3))
+            }
+            this.physicalVehicle.moveTo(exitPos, Math.atan2(exitPose.tangent.x, exitPose.tangent.z))
+
+            // 恢复站台交互
+            this.trainStationPoint.state = InteractivePoints.STATE_CONCEALED
+            this.trainStationPoint.intersect.active = true
+
+            this.notifications.show(/* html */`
+                <div class="top"><div class="title">🚆 下车</div></div>
+                <div class="bottom"><div class="description">已回到你的车</div></div>
+            `, '', 2)
         }
     }
 

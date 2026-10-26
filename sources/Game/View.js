@@ -938,17 +938,20 @@ export class View
             this.defaultCamera.quaternion.slerp(this.cinematic.dummy.quaternion, this.cinematic.progress)
         }
 
-        // Apply to final camera
-        if(this.mode === View.MODE_DEFAULT)
+        // Apply to final camera (lockCamera 时跳过，让外部系统挂 camera)
+        if(!this.lockCamera)
         {
-            this.camera.position.copy(this.defaultCamera.position)
-            this.camera.quaternion.copy(this.defaultCamera.quaternion)
-        }
-        else if(this.mode === View.MODE_FREE)
-        {
-            this.freeMode.update(this.game.ticker.delta)
-            this.camera.position.copy(this.freeCamera.position)
-            this.camera.quaternion.copy(this.freeCamera.quaternion)
+            if(this.mode === View.MODE_DEFAULT)
+            {
+                this.camera.position.copy(this.defaultCamera.position)
+                this.camera.quaternion.copy(this.defaultCamera.quaternion)
+            }
+            else if(this.mode === View.MODE_FREE)
+            {
+                this.freeMode.update(this.game.ticker.delta)
+                this.camera.position.copy(this.freeCamera.position)
+                this.camera.quaternion.copy(this.freeCamera.quaternion)
+            }
         }
 
         // Cameras matrices
