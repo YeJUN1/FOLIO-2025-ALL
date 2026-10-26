@@ -7,48 +7,94 @@ export class TrackPath
     {
         this.game = Game.getInstance()
 
-        // === 轨道控制点（绕小岛一圈，顺时针，避开已有地盘）===
-        // PlotFence 木栅栏: x∈[-6.5, 46.5], z∈[-73.3, -40.3]（右下偏）
-        // PandoraFence 竹子围栏: x∈[16, 86], z∈[-37, 27.4]（中下，横贯）
-        // TerritoryFence 石围栏: 左下不规则
-        // 轨道沿着岛的边缘走，避开中间和中下的地盘
-        const rawPoints = [
-            // 下方（PlotFence 以南，走 PlotFence 和岛南边之间）
-            new THREE.Vector3(-15, 0, -90),
-            new THREE.Vector3(15, 0, -95),
-            new THREE.Vector3(50, 0, -90),
-            // 右下 → 右上（PlotFence 以东，PandoraFence 东南）
-            new THREE.Vector3(85, 0, -75),
-            new THREE.Vector3(110, 0, -50),
-            new THREE.Vector3(120, 0, -15),
-            new THREE.Vector3(118, 0, 20),
-            // 右上 → 左上（PandoraFence 以北）
-            new THREE.Vector3(105, 0, 50),
-            new THREE.Vector3(80, 0, 75),
-            new THREE.Vector3(50, 0, 90),
-            new THREE.Vector3(15, 0, 92),
-            // 左上 → 左下（TerritoryFence 以北和以西）
-            new THREE.Vector3(-20, 0, 88),
-            new THREE.Vector3(-50, 0, 75),
-            new THREE.Vector3(-75, 0, 50),
-            new THREE.Vector3(-85, 0, 15),
-            new THREE.Vector3(-85, 0, -20),
-            new THREE.Vector3(-80, 0, -50),
-            new THREE.Vector3(-60, 0, -75),
-            // 连接回起点
+        // === 地块禁区（轨道不能穿进这些围栏）===
+        // PlotFence 木栅栏: x∈[-6.5, 46.5], z∈[-73.3, -40.3]
+        // PandoraFence 竹子围栏: x∈[16, 86], z∈[-37, 27.4]
+        // TerritoryFence 石围栏: 左下不规则，近似 x∈[-85, -30], z∈[-20, 25]
+        this.forbiddenZones = [
+            { minX: -6.5, maxX: 46.5, minZ: -73.3, maxZ: -40.3, margin: 4 },  // PlotFence
+            { minX: 16,   maxX: 86,   minZ: -37,   maxZ: 27.4,  margin: 4 },  // PandoraFence
+            { minX: -85,  maxX: -30,  minZ: -20,   maxZ: 25,    margin: 3 },  // TerritoryFence（近似）
         ]
 
-        // === 对所有控制点射线贴地 ===
+        // === 轨道控制点 —— 紧贴岛屿陆地边缘，顺时针绕一圈 ===
+        // 岛屿大致是一个椭圆：x∈[-90, 130], z∈[-100, 95]
+        // 控制点沿边缘摆，避开中间的地盘区
+        const rawPoints = [
+            // 【起点】岛的东南海岸线（PlotFence 以东、PandoraFence 以南）
+            new THREE.Vector3(60, 0, -78),
+            // 右下：PlotFence 以南，贴着陆地
+            new THREE.Vector3(40, 0, -95),
+            new THREE.Vector3(10, 0, -98),
+            new THREE.Vector3(-20, 0, -95),
+            new THREE.Vector3(-45, 0, -88),
+            // 左下：TerritoryFence 以西/以南
+            new THREE.Vector3(-65, 0, -75),
+            new THREE.Vector3(-80, 0, -55),
+            new THREE.Vector3(-88, 0, -30),
+            new THREE.Vector3(-88, 0, 0),
+            new THREE.Vector3(-85, 0, 30),
+            // 左上：TerritoryFence 以北
+            new THREE.Vector3(-75, 0, 55),
+            new THREE.Vector3(-55, 0, 78),
+            new THREE.Vector3(-30, 0, 90),
+            new THREE.Vector3(0, 0, 95),
+            new THREE.Vector3(30, 0, 92),
+            // 右上：PandoraFence 以北
+            new THREE.Vector3(55, 0, 85),
+            new THREE.Vector3(80, 0, 70),
+            new THREE.Vector3(100, 0, 45),
+            new THREE.Vector3(115, 0, 15),
+            new THREE.Vector3(120, 0, -15),
+            new THREE.Vector3(115, 0, -45),
+            new THREE.Vector3(100, 0, -68),
+            // 回到起点
+        ]
+
+        // === 避开禁区 + 射线贴地 ===
+        this.sanitizePoints(rawPoints)
         this.setGroundHeight(rawPoints)
 
         // 构建闭合 CatmullRom 曲线
         this.curve = new THREE.CatmullRomCurve3(rawPoints, true, 'catmullrom', 0.5)
 
-        // 生成密集采样点用于渲染和测量
+        // 生成密集采样点用于渲染
         this.samples = this.curve.getPoints(400)
         this.totalLength = this.curve.getLength()
 
         this.setVisual()
+    }
+
+    /**
+     * 把落到禁区内的控制点向外推，同时射线贴地（避开水域则继续外推）
+     */
+    sanitizePoints(points)
+    {
+        for(const p of points)
+        {
+            for(const zone of this.forbiddenZones)
+            {
+                const m = zone.margin
+                if(p.x > zone.minX - m && p.x < zone.maxX + m &&
+                   p.z > zone.minZ - m && p.z < zone.maxZ + m)
+                {
+                    // 落在禁区里，向外推到禁区外 + margin
+                    const cx = (zone.minX + zone.maxX) * 0.5
+                    const cz = (zone.minZ + zone.maxZ) * 0.5
+                    const dx = p.x - cx
+                    const dz = p.z - cz
+                    const len = Math.hypot(dx, dz) || 1
+
+                    // 把点推到"远离中心 + 超出边界 + margin"的位置
+                    const targetX = cx + (dx / len) * ((zone.maxX - zone.minX) * 0.5 + m + 3)
+                    const targetZ = cz + (dz / len) * ((zone.maxZ - zone.minZ) * 0.5 + m + 3)
+
+                    // 钳制到大致岛屿范围
+                    p.x = THREE.MathUtils.clamp(targetX, -100, 135)
+                    p.z = THREE.MathUtils.clamp(targetZ, -105, 100)
+                }
+            }
+        }
     }
 
     setGroundHeight(points)
@@ -70,7 +116,7 @@ export class TrackPath
             }
             else
             {
-                // 没击中地形（可能是水域），给个保底高度
+                // 没击中地形（可能是水域），保底高一点让它不沉水
                 p.y = 2
             }
         }
@@ -85,14 +131,14 @@ export class TrackPath
 
         // 可视化：曲线线框（调试用）
         const curveGeo = new THREE.BufferGeometry().setFromPoints(this.samples)
-        const curveMat = new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.5 })
+        const curveMat = new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.7 })
         const curveLine = new THREE.Line(curveGeo, curveMat)
         curveLine.name = 'pathLine'
-        curveLine.visible = false // 默认隐藏，debug 开关
+        curveLine.visible = false
         group.add(curveLine)
         this.curveLine = curveLine
 
-        // 铁轨：两条平行的细长 Box 沿路径铺设
+        // 铁轨
         this.setRails()
 
         // Debug 开关
@@ -101,136 +147,81 @@ export class TrackPath
             const panel = this.game.debug.panel.addFolder({ title: '🛤️ Track Path', expanded: true })
             panel.addBinding(curveLine, 'visible', { label: 'showPathLine' })
             panel.addBlade({ view: 'separator' })
-            panel.addButton({ title: 'teleportToTrack' }).on('click', () =>
+            panel.addButton({ title: 'teleportToTrack(t=0)' }).on('click', () =>
             {
-                const p = this.curve.getPointAt(0)
-                p.y = 5
-                this.game.player.respawn(null, () =>
-                {
-                    this.game.physicalVehicle.moveTo(p, 0)
-                })
+                const p = this.curve.getPointAt(0); p.y = 5
+                this.game.player.respawn(null, () => { this.game.physicalVehicle.moveTo(p, 0) })
             })
         }
     }
 
     setRails()
     {
-        // 生成每 1m 一个枕木 + 两条长 rail
-        const railGap = 1.435 // 标准轨距 m
-        const railHeight = 0.1
-        const railWidth = 0.08
-
-        const sleeperSpacing = 1.5
+        const railGap = 1.435
+        const railHeight = 0.08
+        const sleeperSpacing = 1.4
         const sleepers = []
 
-        // 按固定距离采样，得到均匀间距的点
         const stepCount = Math.floor(this.totalLength / sleeperSpacing)
         for(let i = 0; i < stepCount; i++)
         {
             const t = i / stepCount
             const p = this.curve.getPointAt(t)
             const tangent = this.curve.getTangentAt(t).normalize()
-
-            // 世界 up = y，计算侧向量 = tangent × up
             const up = new THREE.Vector3(0, 1, 0)
             const side = new THREE.Vector3().crossVectors(tangent, up).normalize()
-
-            // 枕木中心在路径上，枕木方向 = side
             sleepers.push({ p, tangent, side })
         }
 
-        // 枕木 BoxGeometry
-        const sleeperGeo = new THREE.BoxGeometry(railGap + 0.4, 0.1, 0.2)
-        const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1f, roughness: 0.9 })
+        // 枕木（深色防腐木）
+        const sleeperGeo = new THREE.BoxGeometry(railGap + 0.35, 0.09, 0.18)
+        const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x3a2515, roughness: 0.95, metalness: 0.0 })
 
-        // 钢轨 BoxGeometry —— 每段 sleeper 之间一条短 rail
-        const railMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7, roughness: 0.3 })
-
-        // 用 InstancedMesh 做枕木
-        const sleeperCount = sleepers.length
-        const sleeperMesh = new THREE.InstancedMesh(sleeperGeo, sleeperMat, sleeperCount)
+        const sleeperMesh = new THREE.InstancedMesh(sleeperGeo, sleeperMat, sleepers.length)
         sleeperMesh.castShadow = false
         sleeperMesh.receiveShadow = true
 
         const dummy = new THREE.Object3D()
-        const axisY = new THREE.Vector3(0, 1, 0)
-
-        for(let i = 0; i < sleeperCount; i++)
+        for(let i = 0; i < sleepers.length; i++)
         {
-            const { p, tangent } = sleepers[i]
-
-            // 枕木贴地：y 给个小偏移，让它稍稍沉入地下看起来自然
-            dummy.position.set(p.x, p.y + 0.05, p.z)
-
-            // 旋转：让枕木的 length 方向（x 轴）对齐 tangent 的垂直方向（即 side）
-            // 我们直接旋转让 x 轴对准 side
-            const side = sleepers[i].side
-            const quat = new THREE.Quaternion()
-            quat.setFromUnitVectors(axisY, new THREE.Vector3(side.y, side.x * -1, side.z).normalize())
-
-            // 更简单：让 dummy 的 +x 对准 side，+z 对准 tangent
-            // dummy 默认 +x 长，+z 宽
+            const { p, side } = sleepers[i]
+            dummy.position.set(p.x, p.y + 0.045, p.z)
             dummy.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(side.x, side.z))
-
             dummy.updateMatrix()
             sleeperMesh.setMatrixAt(i, dummy.matrix)
         }
         sleeperMesh.instanceMatrix.needsUpdate = true
         this.group.add(sleeperMesh)
 
-        // 两条连续钢轨 —— 用一条 TubeGeometry 沿 offset 后的 curve
-        const leftOffsets = []
-        const rightOffsets = []
+        // 两条钢轨（金属光泽）
+        const railMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.85, roughness: 0.2 })
 
-        // 先对采样点做 side offset
-        const samplesCount = 400
+        const samplesCount = 500
+        const leftOffsets = [], rightOffsets = []
         for(let i = 0; i < samplesCount; i++)
         {
             const t = i / samplesCount
             const p = this.curve.getPointAt(t)
             const tangent = this.curve.getTangentAt(t).normalize()
-            const up = new THREE.Vector3(0, 1, 0)
-            const side = new THREE.Vector3().crossVectors(tangent, up).normalize()
-
-            const offset = railGap * 0.5
-            leftOffsets.push(new THREE.Vector3(
-                p.x + side.x * offset,
-                p.y + railHeight,
-                p.z + side.z * offset
-            ))
-            rightOffsets.push(new THREE.Vector3(
-                p.x - side.x * offset,
-                p.y + railHeight,
-                p.z - side.z * offset
-            ))
+            const side = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize()
+            const off = railGap * 0.5
+            leftOffsets.push(new THREE.Vector3(p.x + side.x * off, p.y + railHeight, p.z + side.z * off))
+            rightOffsets.push(new THREE.Vector3(p.x - side.x * off, p.y + railHeight, p.z - side.z * off))
         }
 
-        const leftCurve = new THREE.CatmullRomCurve3(leftOffsets, true, 'catmullrom', 0.5)
-        const rightCurve = new THREE.CatmullRomCurve3(rightOffsets, true, 'catmullrom', 0.5)
-
-        const tubeSegments = 200
-        const segments = 8
         const leftTube = new THREE.Mesh(
-            new THREE.TubeGeometry(leftCurve, tubeSegments, 0.04, segments, true),
+            new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leftOffsets, true, 'catmullrom', 0.5), 300, 0.045, 8, true),
             railMat
         )
         const rightTube = new THREE.Mesh(
-            new THREE.TubeGeometry(rightCurve, tubeSegments, 0.04, segments, true),
+            new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rightOffsets, true, 'catmullrom', 0.5), 300, 0.045, 8, true),
             railMat
         )
-        leftTube.castShadow = true
-        rightTube.castShadow = true
-        leftTube.receiveShadow = true
-        rightTube.receiveShadow = true
-
+        leftTube.castShadow = true; leftTube.receiveShadow = true
+        rightTube.castShadow = true; rightTube.receiveShadow = true
         this.group.add(leftTube, rightTube)
     }
 
-    /**
-     * 获取轨道上某 t 值的位置和朝向
-     * @param {number} t 0~1
-     * @returns {{ position: THREE.Vector3, tangent: THREE.Vector3 }}
-     */
     getPoseAt(t)
     {
         const position = this.curve.getPointAt(t).clone()
@@ -238,15 +229,8 @@ export class TrackPath
         return { position, tangent }
     }
 
-    /**
-     * 沿轨道推进 t
-     * @param {number} t 当前 t
-     * @param {number} distance 推进的距离（米）
-     * @returns {number} 新的 t（0~1 循环）
-     */
     advance(t, distance)
     {
-        // 近似：用 totalLength 换算
         const deltaT = distance / this.totalLength
         let newT = (t + deltaT) % 1
         if(newT < 0) newT += 1
