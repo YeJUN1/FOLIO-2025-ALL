@@ -177,6 +177,18 @@ export class InteractivePoints
         })
     }
 
+    // 把一个已经建好的点搬去别处（船的刷新点会被服务器改派）：3D 牌子、触发距离、鼠标拾取球都得跟着走
+    moveItem(item, x, y, z)
+    {
+        if(!item)
+            return
+
+        item.position.set(x, z)
+
+        item.group?.position.set(x, y, z)
+        item.intersect?.shape?.center?.set(x, y, z)
+    }
+
     create(
         position,
         text = '',
@@ -333,6 +345,7 @@ export class InteractivePoints
          */
         const item = {}
         item.position = new THREE.Vector2(position.x, position.z)
+        item.group = group
         item.interactCallback = interactCallback
         item.revealCallback = revealCallback
         item.concealCallback = concealCallback
@@ -592,7 +605,8 @@ export class InteractivePoints
             for(const item of this.items)
             {
                 const itemDistance = Math.hypot(item.position.x - this.game.player.position2.x, item.position.y - this.game.player.position2.y)
-                const isIn = itemDistance < 2.5
+                // 默认 2.5 米触发圈；个别点（比如水面上的船刷新点）可以在 item 上写 triggerRadius 放宽
+                const isIn = itemDistance < (item.triggerRadius ?? 2.5)
                 
                 if(isIn)
                 {

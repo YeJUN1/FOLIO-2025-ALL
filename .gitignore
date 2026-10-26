@@ -10,3 +10,12 @@ dist
 scripts/hunyuan/state.json
 resources/hunyuan-raw/
 resources/backups/
+
+# 账户服务运行时私密文件（绝不入库）
+account-login/server/data.db
+account-login/server/password-pepper.txt
+account-login/server/certs/
+
+# 实测过程中的临时产物（截图、改动前的代码备份）
+.dbg/
+.backup-tmp-2/

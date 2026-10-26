@@ -53,6 +53,74 @@
 </head>
 <body>
 
+    <!-- Account: 注册 / 登录（没登录之前不给操作权，背后就是游戏实景） -->
+    <div class="js-account account">
+        <div class="account-backdrop" aria-hidden="true"></div>
+
+        <div class="account-inner">
+            <div class="account-card">
+                <header class="account-brand">
+                    <span class="account-badge" aria-hidden="true">
+                        <img src="ui/lock.svg" alt="" loading="eager">
+                    </span>
+                    <div class="account-title">Bruno's</div>
+                    <div class="account-subtitle">Sign in to enter the world</div>
+                </header>
+
+                <div class="js-account-status account-status" aria-live="polite">Sign in to play online and keep your progress on every device.</div>
+
+                <div class="js-account-tabs account-tabs" role="tablist">
+                    <span class="account-tabs-indicator" aria-hidden="true"></span>
+                    <button type="button" role="tab" aria-selected="true" class="js-account-tab account-tab is-active" data-mode="login">Log in</button>
+                    <button type="button" role="tab" aria-selected="false" class="js-account-tab account-tab" data-mode="register">Register</button>
+                </div>
+
+                <form class="js-account-form account-form" action="#">
+                    <div class="account-field">
+                        <label class="account-field-label" for="account-username">Username</label>
+                        <input id="account-username" class="js-account-username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="16" placeholder="2 to 16 characters">
+                    </div>
+
+                    <div class="account-field">
+                        <label class="account-field-label" for="account-password">Password</label>
+                        <div class="account-input-wrap">
+                            <input id="account-password" class="js-account-password" type="password" autocomplete="current-password" maxlength="128" placeholder="At least 6 characters">
+                            <button type="button" class="js-account-reveal account-reveal" aria-pressed="false" aria-label="Show password" title="Show password">
+                                <svg class="account-reveal-eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.8 12S5.4 5.6 12 5.6 22.2 12 22.2 12 18.6 18.4 12 18.4 1.8 12 1.8 12Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+                                <svg class="account-reveal-slash" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="js-account-confirm-field account-field is-hidden">
+                        <label class="account-field-label" for="account-confirm">Repeat password</label>
+                        <input id="account-confirm" class="js-account-confirm" type="password" autocomplete="new-password" maxlength="128" placeholder="Same password again">
+                    </div>
+
+                    <div class="js-account-error account-error is-hidden" role="alert">
+                        <img class="account-error-icon" src="ui/warning.svg" alt="" aria-hidden="true">
+                        <span class="js-account-error-text account-error-text"></span>
+                    </div>
+
+                    <button type="submit" class="js-account-submit account-submit button">
+                        <span class="account-spinner" aria-hidden="true"></span>
+                        <span class="js-account-submit-label account-submit-label">Log in</span>
+                    </button>
+                </form>
+
+                <p class="account-note">No phone number, no e-mail: the username is all there is. Write the password down.</p>
+
+                <div class="js-account-connection account-connection">
+                    <span class="account-connection-dot" aria-hidden="true"></span>
+                    <span class="js-account-connection-text account-connection-text">Checking account service…</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 头顶昵称名牌（登录后由 Account 的投影脚本挂上来） -->
+    <div class="js-nametags nametags" aria-hidden="true"></div>
+
     <div class="js-fonts-loader fonts-loader">
         <div class="font nunito" data-font="400 20px Nunito"> </div>
         <div class="font amatic-sc" data-font="700 20px 'Amatic SC'"> </div>
@@ -310,6 +378,17 @@
                                                 <button class="js-server button is-small is-disabled has-tooltip">
                                                     <div class="js-tooltip tooltip"></div>
                                                     <span>Pending</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                Account
+                                            </td>
+                                            <td>
+                                                <button class="js-account-logout button is-small has-tooltip">
+                                                    <div class="js-tooltip tooltip">Signs you out on this device. Your progress stays on the server.</div>
+                                                    <span class="js-account-name">Sign out</span>
                                                 </button>
                                             </td>
                                         </tr>
@@ -901,18 +980,6 @@
         </div>
 
     </div>
-
-    <!-- #region debug-point ERR:global-error-report -->
-    <script>
-        (function () {
-            var URL = 'http://127.0.0.1:7777/event';
-            function send(kind, data) { try { fetch(URL, { method: 'POST', body: JSON.stringify({ sessionId: 'vehicle-flip', runId: 'pre', hypothesisId: 'ERR', location: 'index.html', msg: '[DEBUG] ' + kind, data: data, ts: Date.now() }) }).catch(function () {}) } catch (e) {} }
-            window.addEventListener('error', function (e) { send('window error', { message: String(e.message), file: e.filename, line: e.lineno, col: e.colno, stack: e.error && String(e.error.stack).slice(0, 900) }) });
-            window.addEventListener('unhandledrejection', function (e) { send('unhandledrejection', { reason: String((e.reason && (e.reason.stack || e.reason.message)) || e.reason).slice(0, 900) }) });
-            send('page loaded', { href: location.href });
-        })();
-    </script>
-    <!-- #endregion -->
 
     <script type="module" src="./index.js"></script>
 </body>

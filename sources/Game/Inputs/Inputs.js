@@ -40,6 +40,10 @@ export class Inputs
         })
         this.mode = Inputs.MODE_MOUSEKEYBOARD
 
+        // 账号门禁用的总闸：登录界面浮在游戏实景上的时候，世界已经在渲染，
+        // 但玩家还没拿到操作权。filters 会被开场流程 clear() 掉，所以不能拿它当锁。
+        this.locked = false
+
         this.setKeyboard()
         this.setGamepad()
         this.setPointer()
@@ -182,6 +186,10 @@ export class Inputs
 
     checkCategory(action)
     {
+        // 门禁期间一律不给操作（登录成功才放开）
+        if(this.locked)
+            return false
+
         // No filter => Allow all
         if(this.filters.size === 0)
             return true

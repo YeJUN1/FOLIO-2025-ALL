@@ -32,6 +32,7 @@ import { PhysicsWireframe } from './Physics/PhysicsWireframe.js'
 import { Zones } from './Zones.js'
 import { Territory } from './Territory.js'
 import { TerritoryFence } from './World/TerritoryFence.js'
+import { TerritoryDefense } from './World/TerritoryDefense.js'
 import { Overlay } from './Overlay.js'
 import { Tornado } from './Tornado.js'
 import { InteractivePoints } from './InteractivePoints.js'
@@ -57,6 +58,15 @@ export class Game
     static getInstance()
     {
         return Game.instance
+    }
+
+    /**
+     * 船是挂在 world 底下的（World 分步建造），但 Player / Map / Boats 各处习惯写成 game.boats。
+     * 统一走这个 getter，免得拿到 undefined。
+     */
+    get boats()
+    {
+        return this.world?.boats ?? null
     }
 
     constructor()
@@ -137,6 +147,8 @@ export class Game
                 [ 'foliageTexture',                        `foliage/foliageSDF.${compressedTextureExtension}${cb}`,                              compressedTextureFormat, (resource) => { resource.minFilter = THREE.NearestFilter; resource.magFilter = THREE.NearestFilter; resource.generateMipmaps = false; } ],
                 [ 'bushesReferences',                      `bushes/bushesReferences${compressedModelSuffix}.glb${cb}`,                           'gltf' ],
                 [ 'vehicle',                               `vehicle/revuelto${compressedModelSuffix}.glb${cb}`,                                  'gltf' ],
+                // 可驾驶的船（低模，未压缩）
+                [ 'boatModel',                             `boat/boat.glb${cb}`,                                                                 'gltf' ],
                 [ 'playgroundVisual',                      `playground/playgroundVisual${compressedModelSuffix}.glb${cb}`,                       'gltf' ],
                 [ 'playgroundPhysical',                    `playground/playgroundPhysical${compressedModelSuffix}.glb${cb}`,                     'gltf' ],
                 [ 'flowersReferencesModel',                `flowers/flowersReferences${compressedModelSuffix}.glb${cb}`,                         'gltf' ],
@@ -207,6 +219,7 @@ export class Game
         this.title = new Title()
         // this.monitoring = new Monitoring()
         this.world.step(1)
+        this.territoryDefense = new TerritoryDefense()
         this.overlay = new Overlay()
 
         // Pre-render if quality high

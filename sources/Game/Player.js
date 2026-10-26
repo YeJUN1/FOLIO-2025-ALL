@@ -10,16 +10,38 @@ export class Player
     static STATE_DEFAULT = 1
     static STATE_LOCKED = 2
 
+    // 当前坐着的是车还是船（船是运动学贴水，与 car 共享同一套相机/地图接口）
+    static MODE_DRIVE = 1
+    static MODE_BOAT = 2
+
+    // 上船：人得到船边才算够得着（量的是“到船身表面”的距离，不是到中心的距离）。
+    // 12 米不是拍脑袋，是两个实测数叠加：
+    //   船刷新点被要求“周围 5×5 格都够深”（一格 3 米），最近陆地到船身表面 8.35 米；
+    //   而 Character.exitVehicle() 把人放在车左侧 2.1 米处，下车点偏离落脚点到船就是 10.02 米。
+    // 拿 4 米（原仓库值）站在滩上永远上不了船；拿 9 米则下车偏移一点就出圈。
+    static BOAT_BOARDING_DISTANCE = 12
+    // 人与船的高度差超过这个就不算站在船旁边（船开到桥上、人站在堤下时别把人吸上去）
+    static BOARDING_HEIGHT = 3
+    // 车身的半长 / 半宽（含保险杠）：没自带尺寸的物体才用这套默认值
+    static VEHICLE_HALF_LENGTH = 1.7
+    static VEHICLE_HALF_WIDTH = 0.95
+
     constructor()
     {
         this.game = Game.getInstance()
         
         this.state = Player.STATE_DEFAULT
+        this.mode = Player.MODE_DRIVE
         this.accelerating = 0
         this.steering = 0
         this.boosting = 0
         this.braking = 0
         this.suspensions = ['low', 'low', 'low', 'low']
+
+        // 开船：我正驾驶的那条船（null = 没在开船）
+        this.activeBoat = null
+        // 已经报给服务器、正在等回执的那条船（防抢船失败时回滚）
+        this.pendingBoat = null
 
         const respawn = this.game.respawns.getDefault()
 
@@ -236,6 +258,9 @@ export class Player
             { name: 'suspensionsBackLeft',   categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad1', 'Keyboard.Digit1' ] },
             { name: 'interact',              categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.Enter', 'Keyboard.KeyE', 'Keyboard.KeyF', 'Gamepad.cross' ] },
             { name: 'honk',                  categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.KeyH', 'Gamepad.l3' ] },
+            // 上船 / 下船（E、回车、F 都被场景里的互动点占着，C 又是下车，所以用 G）
+            // 走路时 filter 是 'walking'，两个类别都得挂，否则人在岸上按 G 根本不会响应
+            { name: 'vehicleToggle',         categories: [ 'wandering', 'walking' ], keys: [ 'Keyboard.KeyG' ] },
         ])
 
         // Respawn
@@ -246,7 +271,11 @@ export class Player
 
             if(action.active)
             {
-                this.respawn()
+                // 开船时按 R：把船传送回它的刷新点，人还留在船上
+                if(this.mode === Player.MODE_BOAT && this.activeBoat)
+                    this.game.boats.resetBoat(this.activeBoat)
+                else
+                    this.respawn()
             }
         })
 
@@ -255,6 +284,22 @@ export class Player
         {
             if(action.active)
                 this.honk()
+        })
+
+        // 上船 / 下船
+        this.game.inputs.events.on('vehicleToggle', (action) =>
+        {
+            if(!action.active)
+                return
+
+            // 人在船上时 state 是 DEFAULT，下面的 die()/演出状态仍然能锁住这个键
+            if(this.state !== Player.STATE_DEFAULT && !this.game.character?.active)
+                return
+
+            if(this.mode === Player.MODE_BOAT)
+                this.getOffBoat()
+            else
+                this.tryBoardBoat()
         })
 
         // Suspensions
@@ -473,6 +518,21 @@ export class Player
             if(typeof callback === 'function')
                 callback()
 
+            // 正在开船：先把船席位让出去（船留在原地），人直接回到车里。
+            // 不然传送只拉车不拉船，人和船会被各拉向不同的地方
+            if(this.mode === Player.MODE_BOAT)
+            {
+                if(this.activeBoat)
+                    this.game.boats.localLeave(this.activeBoat)
+
+                this.activeBoat = null
+                this.pendingBoat = null
+                this.mode = Player.MODE_DRIVE
+
+                // 上船时人是被“收起来”的，这里确认一下别留一个可见的人偶站在旧坐标上
+                this.game.character?.deactivate()
+            }
+
             // Find respawn
             let respawn = respawnName ? this.game.respawns.getByName(respawnName) : this.game.respawns.getClosest(this.position)
 
@@ -519,6 +579,303 @@ export class Player
         this.game.achievements.addProgress('honk')
     }
 
+    // ———— 船钥匙：上船、下船 ————
+
+    /**
+     * 联机时我的编号。没连服务器（纯单机）就是 null：
+     * Boat/Boats 里所有联网分支都以它为开关，null 时自动退化成纯本地模拟。
+     */
+    getMyId()
+    {
+        return this.game.remotePlayers?.id ?? null
+    }
+
+    /**
+     * 相机/地图/音效跟着走的“当前交通工具”。
+     * 船已 duck-type 成与 physicalVehicle 同名接口，调用方无需分支。
+     */
+    getActiveVehicle()
+    {
+        if(this.mode === Player.MODE_BOAT && this.activeBoat)
+            return this.activeBoat
+
+        return this.game.physicalVehicle
+    }
+
+    /**
+     * 人到交通工具表面的距离（0 = 正贴着）。
+     * 不能拿“到中心的距离”来判：船有十米长，站在船头船尾离中心就有五六米。
+     * 所以把人到中心的位移投影到“前后 / 左右”两个方向，减掉车身自己的半长半宽。
+     */
+    static vehicleSurfaceDistance(vehicle, position)
+    {
+        const forward = vehicle.forward.clone().setY(0).normalize()
+
+        if(forward.lengthSq() < 0.01)
+            forward.set(1, 0, 0)
+
+        // 车/船自己的尺寸：船有 10 米长，拿车的半长去量会把“明明贴在船边”算成离船好几米
+        const halfLength = vehicle.halfLength ?? Player.VEHICLE_HALF_LENGTH
+        const halfWidth = vehicle.halfWidth ?? Player.VEHICLE_HALF_WIDTH
+
+        // 左右方向：车头朝 +X 时，左右是 +Z
+        const sidewardX = -forward.z
+        const sidewardZ = forward.x
+
+        const offsetX = position.x - vehicle.position.x
+        const offsetZ = position.z - vehicle.position.z
+
+        const alongForward = offsetX * forward.x + offsetZ * forward.z
+        const alongSideward = offsetX * sidewardX + offsetZ * sidewardZ
+
+        const beyondForward = Math.max(0, Math.abs(alongForward) - halfLength)
+        const beyondSideward = Math.max(0, Math.abs(alongSideward) - halfWidth)
+
+        return Math.hypot(beyondForward, beyondSideward)
+    }
+
+    static isNearVehicle(vehicle, position)
+    {
+        // 船漂在下游、人站在堤上时别把人吸下去
+        if(Math.abs(position.y - vehicle.position.y) > Player.BOARDING_HEIGHT)
+            return false
+
+        return Player.vehicleSurfaceDistance(vehicle, position) <= Player.BOAT_BOARDING_DISTANCE
+    }
+
+    // 最近的一条空船（有人开的不能抢）
+    findBoardingBoat()
+    {
+        const boats = this.game.boats
+
+        if(!boats)
+            return null
+
+        // 人在岸上就走人的位置，还坐在车里就以车为锚
+        const position = this.game.character?.active
+            ? this.game.character.position
+            : this.game.physicalVehicle.position
+
+        let best = null
+        let bestDistance = Player.BOAT_BOARDING_DISTANCE
+
+        for(const boat of boats.list)
+        {
+            if(boat.driverId)
+                continue
+
+            if(!Player.isNearVehicle(boat, position))
+                continue
+
+            const distance = Player.vehicleSurfaceDistance(boat, position)
+
+            if(distance < bestDistance)
+            {
+                bestDistance = distance
+                best = boat
+            }
+        }
+
+        return best
+    }
+
+    /**
+     * 按 G 上船。人可能正在开车，也可能正在岸上走：
+     * 先按当前位置量一次（走路以人为锚、开车以车为锚），量得着船才把车停在原地、人下车进船。
+     * 量不着就不要把人扔在荒野里，只给一句提示。
+     */
+    tryBoardBoat()
+    {
+        if(!this.game.boats)
+            return
+
+        const boat = this.findBoardingBoat()
+
+        if(!boat)
+        {
+            this.game.notifications.show(
+                /* html */`
+                    <div class="top">
+                        <div class="title">No boat within reach</div>
+                    </div>
+                    <div class="bottom">
+                        <div class="description">Park next to the water and press G</div>
+                    </div>
+                `,
+                '',
+                2.5,
+                null,
+                'boatTooFar'
+            )
+            return
+        }
+
+        // 还坐在车里：先下车（车就地冻住），人站在车边被收进船里
+        if(!this.game.character?.active)
+            this.game.character?.exitVehicle()
+
+        this.boardBoat(boat)
+    }
+
+    /**
+     * 上船：船是单人座，有人开就不能抢。
+     * 本地先上（手感瞬快），同时报给服务器裁决；若被抢则回执会把我请下来。
+     */
+    boardBoat(boat)
+    {
+        if(!boat || boat.driverId)
+            return false
+
+        this.boardBoatLocal(boat)
+
+        if(this.getMyId())
+        {
+            this.pendingBoat = boat.id
+            this.game.remotePlayers?.sendBoatBoard(boat.id)
+        }
+
+        return true
+    }
+
+    // 只在本地坐进去（服务器回执 / 离线都走这里，不发网络）
+    boardBoatLocal(boat)
+    {
+        if(!boat)
+            return false
+
+        if(this.mode === Player.MODE_BOAT && this.activeBoat === boat)
+            return true
+
+        // 人在岸上走着：把他收进船里。车不用碰——走路状态下它本来就是冻住的
+        this.game.character?.deactivate()
+
+        this.activeBoat = boat
+        this.game.boats.localBoard(boat, this.getMyId())
+        this.mode = Player.MODE_BOAT
+
+        // 输入切回开车那一套（Boat 直读 forward/left/right/brake），同时把车钥匙拔了
+        this.accelerating = 0
+        this.steering = 0
+        this.boosting = 0
+        this.braking = 0
+        this.state = Player.STATE_DEFAULT
+        this.game.inputs.filters.clear()
+        this.game.inputs.filters.add('wandering')
+
+        return true
+    }
+
+    // 服务器确认我就是这条船的驾驶员
+    onBoatConfirmed(boatId)
+    {
+        if(this.pendingBoat === boatId)
+            this.pendingBoat = null
+    }
+
+    // 服务器说这条船被别人抢了：把我刚乐观上进去的那条退下来
+    onBoatBusy(boatId)
+    {
+        if(this.pendingBoat !== boatId)
+            return
+
+        this.pendingBoat = null
+
+        if(this.activeBoat && this.activeBoat.id === boatId)
+            this.forceOffBoat(this.activeBoat, false)
+    }
+
+    // 被服务器/回执请下船（sendLeave=false 代表示我本来就没坐上）
+    forceOffBoat(boat, sendLeave = true)
+    {
+        if(!boat)
+            return
+
+        if(sendLeave && this.getMyId())
+            this.game.remotePlayers?.sendBoatLeave(boat.id)
+
+        if(boat.localDriven)
+            this.game.boats.localLeave(boat)
+
+        if(this.activeBoat === boat)
+        {
+            this.activeBoat = null
+            this.backOnShore(boat)
+        }
+
+        if(this.pendingBoat === boat.id)
+            this.pendingBoat = null
+    }
+
+    /**
+     * 下船时人落在哪：优先放到最近的岸上。
+     * 这张图的水最深才 1.2 米，角色又没有游泳动画，直接扔在水里会一直沉到河底，
+     * 看着就站在水底。真找不到岸（理论上不会）才退回“船头上方一点”。
+     */
+    boatDropPosition(boat)
+    {
+        if(boat)
+        {
+            const shore = this.game.boats?.getShoreDrop(boat.position.x, boat.position.z)
+
+            if(shore)
+                return shore
+        }
+
+        const position = boat
+            ? boat.position.clone()
+            : this.position.clone()
+
+        position.y += 1
+
+        return position
+    }
+
+    /**
+     * 回到陆地：人放到最近的岸上走路，船留在原地（搁在滩上也没关系——这正是 REFRESH 的用途），
+     * 车仍然冻在上船的地方，走回車边按 C 就能开。
+     */
+    backOnShore(boat)
+    {
+        this.mode = Player.MODE_DRIVE
+
+        const drop = this.boatDropPosition(boat)
+        const character = this.game.character
+
+        if(character)
+        {
+            character.activateAt(drop, this.rotationY)
+            return
+        }
+
+        // 极端兼容：这个构建没有走路角色时，把人交还给车，并把车搬到最近的岸上解冻
+        this.game.physicalVehicle.moveTo(drop, this.rotationY)
+        this.game.physicalVehicle.activate()
+        this.state = Player.STATE_DEFAULT
+        this.game.inputs.filters.clear()
+        this.game.inputs.filters.add('wandering')
+    }
+
+    /**
+     * 下船（按 G）：先把座位让给服务器，免得别人以为车里还坐着人。
+     */
+    getOffBoat()
+    {
+        if(this.mode !== Player.MODE_BOAT)
+            return
+
+        const boat = this.activeBoat
+        this.pendingBoat = null
+
+        if(boat && this.getMyId())
+            this.game.remotePlayers?.sendBoatLeave(boat.id)
+
+        if(boat)
+            this.game.boats.localLeave(boat)
+
+        this.activeBoat = null
+        this.backOnShore(boat)
+    }
+
     updatePrePhysics()
     {
         this.accelerating = 0
@@ -527,6 +884,11 @@ export class Player
         this.braking = 0
 
         if(this.state !== Player.STATE_DEFAULT)
+            return
+
+        // 开船时：WASD 由 Boat 自己直读，Player 这边必须早返回（保持 accelerating/steering=0），
+        // 不然冻在岸上的车会跟着我的按键自己跑
+        if(this.mode === Player.MODE_BOAT)
             return
 
         /**
@@ -600,15 +962,18 @@ export class Player
 
     updatePostPhysics()
     {
+        // 当前交通工具：开车时是车，开船时是船（接口同名，下面无需分支）
+        const vehicle = this.getActiveVehicle()
+
         // Position
-        this.position.copy(this.game.physicalVehicle.position)
+        this.position.copy(vehicle.position)
         this.position2 = new THREE.Vector2(this.position.x, this.position.z)
         
         // View > Focus point
         this.game.view.focusPoint.trackedPosition.copy(this.position)
 
         // View > Speed lines
-        if(this.boosting && this.accelerating && this.game.physicalVehicle.speed > 15)
+        if(this.boosting && this.accelerating && vehicle.speed > 15)
             this.game.view.speedLines.strength = 1
         else
             this.game.view.speedLines.strength = 0
@@ -619,14 +984,14 @@ export class Player
         this.game.tracks.focusPoint.set(this.position.x, this.position.z)
 
         // Inputs touch joystick
-        this.rotationY = Math.atan2(this.game.physicalVehicle.forward.z, this.game.physicalVehicle.forward.x)
+        this.rotationY = Math.atan2(vehicle.forward.z, vehicle.forward.x)
         this.game.inputs.nipple.setCoordinates(this.position.x, this.position.y, this.position.z, this.rotationY)
 
         // Sound
-        if(this.game.physicalVehicle.wheels.justTouchedCount > 1)
+        if(vehicle.wheels && vehicle.wheels.justTouchedCount > 1)
         {
-            this.sounds.spring1.play(this.game.physicalVehicle.wheels.justTouchedCount)
-            this.sounds.spring2.play(this.game.physicalVehicle.wheels.justTouchedCount)
+            this.sounds.spring1.play(vehicle.wheels.justTouchedCount)
+            this.sounds.spring2.play(vehicle.wheels.justTouchedCount)
         }
 
         // Time played
@@ -656,7 +1021,7 @@ export class Player
         //     this.game.achievements.setProgress('speed', speedKmPerHour)
 
         // Distance driven
-        this.distanceDriven.value += this.game.physicalVehicle.xzSpeed * this.game.ticker.deltaScaled
+        this.distanceDriven.value += vehicle.xzSpeed * this.game.ticker.deltaScaled
         const flooredDistanceDriven = Math.floor(this.distanceDriven.value)
 
         if(flooredDistanceDriven !== this.distanceDriven.floored)

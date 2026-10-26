@@ -11,7 +11,9 @@
     "hunyuan:generate": "node scripts/hunyuan/generate.js",
     "hunyuan:process": "node scripts/hunyuan/process.js",
     "hunyuan:whoami": "node scripts/hunyuan/whoami.js",
-    "garden:build": "node scripts/hunyuan/build.js"
+    "garden:build": "node scripts/hunyuan/build.js",
+    "account": "node account-login/server/account-server.js",
+    "start": "node scripts/dev-all.js"
   },
   "author": "",
   "license": "ISC",

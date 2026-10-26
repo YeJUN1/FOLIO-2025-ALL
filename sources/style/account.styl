@@ -1,0 +1,574 @@
+// ———— 账号：注册 / 登录 ————
+//
+// 登录界面浮在游戏实景之上（游戏在底下照常渲染、昼夜照常走），所以这里的颜色
+// 有一半是运行时写进来的 CSS 变量：
+//   --account-tint   当前天色（由 Account.syncAmbient() 从 dayCycles 取）
+//   --account-glow   当前光色，用来做卡片背后那团光
+//   --account-tab    tab 指示条位置（0 = Log in，1 = Register）
+// 尺寸和圆角都走下面这几个变量，跟全站 .button（58px / 8px 圆角）同一套阶梯。
+
+$account-accent = #ffceca
+$account-success = #d5ff95
+$account-danger = #ff87a2
+$radius = 8px
+$radius-card = 12px
+$field-height = 46px
+
+.account
+    display none
+    position fixed
+    top 0
+    left 0
+    width 100%
+    height 100%
+    z-index 2147483000
+    overflow-y auto
+    font-family "Nunito", sans-serif
+    color #ffffff
+    transition opacity 0.4s ease
+
+    &.is-visible
+        display flex
+        align-items center
+        justify-content center
+
+    // 10：登录成功的那一下 —— 卡片往上缩、幕布先亮掉，把世界交还出来
+    &.is-leaving
+        opacity 0
+
+        .account-card
+            transform translate3d(0, -16px, 0) scale(0.98)
+
+        .account-backdrop
+            opacity 0
+
+// 11 + 12：压住实景的幕布。底色是当下天色，上面叠一层压暗渐变和站点自己的纹理
+.account-backdrop
+    position fixed
+    top 0
+    left 0
+    width 100%
+    height 100%
+    // 这层底色本身就是一个带透明度的 rgba（Account.syncAmbient 按当下天色写进来）
+    background-color var(--account-tint, rgba(21, 15, 25, 0.66))
+    transition opacity 0.4s ease
+
+    &:before
+        content ''
+        position absolute
+        top 0
+        left 0
+        width 100%
+        height 100%
+        // 上面一团是当前光色（--account-glow，夜里偏蓝、白天偏暖），下面那层把画面压暗、保证卡片对比度
+        background: radial-gradient(70% 45% at 50% 4%, var(--account-glow, transparent) 0%, transparent 70%), linear-gradient(180deg, alpha(#0b0710, 0.42) 0%, alpha(#0b0710, 0.76) 100%)
+
+    // 跟 HUD / 造景用的是同一张叠加纹理，让它闻起来像同一个作品
+    &:after
+        content ''
+        position absolute
+        top 0
+        left 0
+        width 100%
+        height 100%
+        background url('overlay/overlayPattern.png') repeat
+        background-size 256px 256px
+        opacity 0.06
+        mix-blend-mode overlay
+
+    @supports not (backdrop-filter: blur(1px))
+        // 不支持模糊的浏览器就把幕布压得更实一点，别透出半个世界
+        background-color alpha(#150f19, 0.94)
+
+.account-inner
+    position relative
+    width 100%
+    display flex
+    justify-content center
+    padding 30px 16px
+
+    @media only screen and (max-width 520px)
+        padding 20px 12px
+
+.account-card
+    position relative
+    width 420px
+    max-width 100%
+    padding 30px 30px 22px
+    border-radius $radius-card
+    border 1px solid alpha(#ffffff, 0.14)
+    background alpha(#140e1c, 0.5)
+    box-shadow 0 24px 60px alpha(#000000, 0.45), 0 0 1px alpha(#000000, 0.6)
+    backdrop-filter blur(14px) saturate(1.1)
+    transition transform 0.4s ease
+    animation account-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both
+
+    @media only screen and (max-width 520px)
+        padding 24px 20px 18px
+
+    // 5：进场按层次错开，元素不是“一起蹦出来”的
+    > *
+        animation account-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both
+
+    for $index in (1..9)
+        > *:nth-child({$index})
+            animation-delay ($index * 55)ms
+
+// 4：品牌区 —— 用站点自己的 Amatic SC 手写体和现成的锁图标
+.account-brand
+    text-align center
+    margin-bottom 1.2em
+
+    .account-badge
+        display inline-flex
+        align-items center
+        justify-content center
+        width 44px
+        height 44px
+        margin-bottom 0.55em
+        border-radius 50%
+        border 1px solid alpha($account-accent, 0.45)
+        background alpha($account-accent, 0.1)
+        box-shadow 0 0 26px alpha($account-accent, 0.22)
+
+        img
+            width 17px
+            filter brightness(0) invert(1)
+            opacity 0.9
+
+    .account-title
+        font-family "Amatic SC", sans-serif
+        font-weight 700
+        font-size 3.1rem
+        line-height 0.9
+        letter-spacing 0.03em
+
+    .account-subtitle
+        font-size 0.74rem
+        font-weight 600
+        letter-spacing 0.14em
+        text-transform uppercase
+        opacity 0.5
+
+.account-status
+    font-size 0.8rem
+    line-height 1.45
+    margin-bottom 1em
+    text-align center
+    opacity 0.72
+
+    &.is-hidden
+        display none
+
+// 6：登录 / 注册切换 —— 底下一条会滑的光框，而不是只换文字颜色
+.account-tabs
+    position relative
+    display flex
+    padding 3px
+    margin-bottom 1.1em
+    border-radius $radius
+    border 1px solid alpha(#ffffff, 0.12)
+    background alpha(#000000, 0.28)
+
+    .account-tabs-indicator
+        position absolute
+        top 3px
+        left 3px
+        width calc(50% - 3px)
+        height calc(100% - 6px)
+        border-radius ($radius - 2px)
+        border 1px solid alpha($account-accent, 0.5)
+        background alpha($account-accent, 0.13)
+        box-shadow 0 0 18px alpha($account-accent, 0.18)
+        transform translate3d(calc(var(--account-tab, 0) * 100%), 0, 0)
+        transition transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1)
+        pointer-events none
+
+    .account-tab
+        position relative
+        z-index 1
+        flex 1
+        height 34px
+        border-radius ($radius - 2px)
+        color alpha(#ffffff, 0.55)
+        font-size 0.8rem
+        font-weight 700
+        letter-spacing 0.02em
+        transition color 0.2s
+
+        &.is-active
+            color $account-accent
+
+        html:not(.is-mode-touch) &:hover
+            color #ffffff
+
+// 9：输入框 —— label 跟着焦点变色，focus 有一圈柔光
+.account-field
+    margin-bottom 0.9em
+
+    &.is-hidden
+        display none
+
+    .account-field-label
+        display block
+        margin-bottom 0.42em
+        font-size 0.67rem
+        font-weight 700
+        letter-spacing 0.1em
+        text-transform uppercase
+        color alpha(#ffffff, 0.5)
+        transition color 0.2s
+
+    .account-input-wrap
+        position relative
+
+    input
+        display block
+        width 100%
+        height $field-height
+        padding 0 13px
+        border-radius $radius
+        border 1px solid alpha(#ffffff, 0.16)
+        background alpha(#ffffff, 0.05)
+        color inherit
+        font-family inherit
+        font-size 0.95rem
+        transition border-color 0.2s, box-shadow 0.2s, background 0.2s
+
+        &::placeholder
+            color alpha(#ffffff, 0.3)
+
+        html:not(.is-mode-touch) &:hover
+            border-color alpha(#ffffff, 0.32)
+
+        &:focus
+            outline none
+            border-color alpha($account-accent, 0.85)
+            background alpha(#ffffff, 0.07)
+            box-shadow 0 0 0 3px alpha($account-accent, 0.16)
+
+            + .account-reveal
+                color alpha(#ffffff, 0.8)
+
+        &[aria-invalid="true"]
+            border-color alpha($account-danger, 0.75)
+
+    .account-input-wrap input
+        padding-right 44px
+
+    &:focus-within .account-field-label
+        color $account-accent
+
+// 密码显隐小眼睛
+.account-reveal
+    position absolute
+    top 50%
+    right 5px
+    width 34px
+    height 34px
+    margin-top -17px
+    display flex
+    align-items center
+    justify-content center
+    border-radius ($radius - 2px)
+    color alpha(#ffffff, 0.45)
+    transition color 0.2s, background 0.2s
+
+    svg
+        position absolute
+        width 18px
+        height 18px
+        transition opacity 0.2s
+
+    .account-reveal-slash
+        opacity 0
+
+    html:not(.is-mode-touch) &:hover
+        color #ffffff
+        background alpha(#ffffff, 0.08)
+
+    &:focus
+        outline none
+        box-shadow 0 0 0 3px alpha($account-accent, 0.16)
+
+    &[aria-pressed="true"]
+        color $account-accent
+
+        .account-reveal-eye
+            opacity 0.4
+
+        .account-reveal-slash
+            opacity 1
+
+// 7：报错 —— 淡入 + 一次抖动 + 站点现成的警告三角
+.account-error
+    display flex
+    align-items flex-start
+    margin-bottom 0.9em
+    padding 9px 11px
+    border-radius $radius
+    border 1px solid alpha($account-danger, 0.4)
+    background alpha($account-danger, 0.1)
+    color #ffe3ea
+    font-size 0.77rem
+    line-height 1.4
+
+    &.is-hidden
+        display none
+
+    &.is-shown
+        animation account-error 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both
+
+    .account-error-icon
+        width 17px
+        height 14px
+        flex-shrink 0
+        margin-right 8px
+        margin-top 2px
+
+// 1：提交按钮直接继承全站 .button（58px / 8px 圆角 / 白描边 / disabled 虚线），
+// 只用 is-success 这一档状态色来区分“进去玩”这个动作
+.account-submit
+    position relative
+    display flex
+    align-items center
+    justify-content center
+    width 100%
+    font-weight 700
+    font-size 0.95rem
+
+    &:not(:disabled):hover
+        border-color $account-accent
+        color $account-accent
+        background alpha($account-accent, 0.09)
+
+    &.is-success
+        border-color alpha($account-success, 0.8)
+        color $account-success
+
+    .account-submit-label
+        transition opacity 0.2s
+
+    .account-spinner
+        display none
+        width 16px
+        height 16px
+        margin-right 9px
+        border-radius 50%
+        border 2px solid alpha(#ffffff, 0.25)
+        border-top-color currentColor
+        animation account-spin 0.7s linear infinite
+
+    &.is-busy
+        .account-spinner
+            display block
+
+// 3：把“找不回密码”从免责声明改成人话，并且真的看得见
+.account-note
+    margin-top 1.1em
+    font-size 0.75rem
+    line-height 1.45
+    text-align center
+    color alpha(#ffffff, 0.62)
+
+// 服务状态灯：绿=接口在，琥珀=正在重试（不再让人干等一句“服务不可用”）
+.account-connection
+    display flex
+    align-items center
+    justify-content center
+    margin-top 0.9em
+    font-size 0.68rem
+    letter-spacing 0.06em
+    text-transform uppercase
+    color alpha(#ffffff, 0.5)
+
+    .account-connection-dot
+        width 7px
+        height 7px
+        margin-right 7px
+        border-radius 50%
+        background #7c7f8a
+        transition background 0.3s, box-shadow 0.3s
+
+    &.is-online .account-connection-dot
+        background $account-success
+        box-shadow 0 0 10px alpha($account-success, 0.6)
+
+    &.is-retrying .account-connection-dot
+        background #ffce5c
+        box-shadow 0 0 10px alpha(#ffce5c, 0.5)
+        animation account-pulse 1.4s ease-in-out infinite
+
+    &.is-hidden
+        display none
+
+// ———— 门禁期间：游戏在背景跑，但别的界面先都别露脸 ————
+
+body.is-account-gated
+    .js-menu
+        display none !important
+
+    // 角落里的菜单 / 地图入口也要藏掉，不然幕布后面会浮出两个游标按钮
+    .js-menu-trigger
+        display none !important
+
+    .js-map-trigger
+        display none !important
+
+    .js-modals
+        display none !important
+
+    .js-notifications
+        display none !important
+
+    .js-crosshair
+        opacity 0 !important
+
+    .js-touch-buttons
+        display none !important
+
+    .nipple
+        display none !important
+
+// ———— 14：头顶昵称名牌（自己 + 以后多人共用同一个组件） ————
+
+.nametags
+    position fixed
+    top 0
+    left 0
+    width 100%
+    height 100%
+    z-index 99998
+    pointer-events none
+    overflow hidden
+
+    &.is-hidden
+        display none
+
+.nametag
+    position absolute
+    top 0
+    left 0
+    display flex
+    align-items center
+    padding 3px 10px 3px 4px
+    border-radius 999px
+    border 1px solid alpha(#ffffff, 0.28)
+    background alpha(#140e1c, 0.66)
+    box-shadow 0 4px 16px alpha(#000000, 0.45)
+    color #ffffff
+    font-family "Nunito", sans-serif
+    font-size 12px
+    line-height 1.5
+    font-weight 700
+    white-space nowrap
+    text-shadow 0 1px 2px alpha(#000000, 0.6)
+    opacity 0
+    transition opacity 0.3s ease
+
+    &.is-visible
+        opacity 1
+
+    // 头像位 = 等级色的一枚点，别人一眼能看出这是“有账号”的角色
+    .nametag-avatar
+        width 16px
+        height 16px
+        margin-right 7px
+        border-radius 50%
+        background $account-accent
+        box-shadow inset 0 0 0 1px alpha(#000000, 0.35)
+
+    // 你自己的名牌带一圈主角色描边
+    &.is-self
+        border-color alpha($account-accent, 0.6)
+
+        .nametag-avatar
+            background $account-accent
+
+    .nametag-level
+        margin-left 6px
+        padding 0 5px
+        border-radius 999px
+        background alpha(#ffffff, 0.14)
+        font-size 10px
+        font-weight 600
+        letter-spacing 0.04em
+        opacity 0.75
+
+    // 在车里 / 在走路：同一个组件换色，不用第二套样式
+    &.is-vehicle
+        .nametag-avatar
+            background #7fb2ff
+
+    &.is-offscreen
+        opacity 0
+
+// ———— 动画 ———————
+
+@keyframes account-rise
+    from
+        opacity 0
+        transform translate3d(0, 12px, 0)
+
+    to
+        opacity 1
+        transform none
+
+@keyframes account-error
+    0%
+        opacity 0
+        transform translate3d(0, -4px, 0)
+
+    15%
+        opacity 1
+        transform translate3d(-7px, 0, 0)
+
+    35%
+        transform translate3d(6px, 0, 0)
+
+    55%
+        transform translate3d(-4px, 0, 0)
+
+    75%
+        transform translate3d(2px, 0, 0)
+
+    100%
+        opacity 1
+        transform none
+
+@keyframes account-spin
+    to
+        transform rotate(360deg)
+
+@keyframes account-pulse
+    0%, 100%
+        opacity 1
+
+    50%
+        opacity 0.35
+
+// 老师 / 评委如果开了“减少动态效果”，这些花活全部让路给可读性
+@media (prefers-reduced-motion: reduce)
+    .account
+        transition none
+
+        .account-card
+            animation none
+
+            > *
+                animation none
+
+    .account-backdrop
+        transition none
+
+    .account-tabs .account-tabs-indicator
+        transition none
+
+    .account-error.is-shown
+        animation none
+
+    .account-submit .account-spinner
+        animation none
+
+    .account-connection.is-retrying .account-connection-dot
+        animation none

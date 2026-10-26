@@ -1,0 +1,169 @@
+// 账号：登录 / 注册界面（在游戏之前挡着）和人物头顶的昵称名牌
+
+.account
+    display none
+    position fixed
+    top 0
+    left 0
+    width 100%
+    height 100%
+    z-index 2147483000
+    overflow-y auto
+    font-family "Nunito", sans-serif
+    color #ffffff
+    background radial-gradient(farthest-side at 30% 15%, #2b2433, #150f19)
+
+    &.is-visible
+        display flex
+        align-items center
+        justify-content center
+
+    .account-inner
+        width 100%
+        display flex
+        justify-content center
+        padding 30px 16px
+
+    .account-card
+        width 380px
+        max-width 100%
+        padding 26px 24px 20px
+        border-radius 14px
+        border 1px solid alpha(#ffffff, 0.12)
+        background alpha(#000000, 0.3)
+        box-shadow 0 18px 50px alpha(#000000, 0.45)
+
+    .account-title
+        font-family "Amatic SC", sans-serif
+        font-weight 700
+        font-size 2.4rem
+        line-height 1
+        margin-bottom 0.1em
+
+    .account-status
+        font-size 0.85rem
+        line-height 1.4
+        opacity 0.7
+        margin-bottom 1em
+
+        &.is-hidden
+            display none
+
+    .account-tabs
+        display flex
+        gap 6px
+        margin-bottom 1em
+
+    .account-tab
+        flex 1
+        height 34px
+        border-radius 8px
+        border 1px solid alpha(#ffffff, 0.18)
+        color alpha(#ffffff, 0.6)
+        font-size 0.8rem
+        transition border-color 0.2s, color 0.2s, background 0.2s
+
+        &.is-active
+            border-color #ffceca
+            color #ffceca
+            background alpha(#ffceca, 0.08)
+
+        html:not(.is-mode-touch) &:hover
+            color #ffffff
+            border-color alpha(#ffffff, 0.5)
+
+    .account-field
+        display block
+        margin-bottom 0.9em
+
+        > span
+            display block
+            margin-bottom 0.35em
+            font-size 0.7rem
+            letter-spacing 0.05em
+            text-transform uppercase
+            opacity 0.55
+
+        &.is-hidden
+            display none
+
+        input
+            display block
+            width 100%
+            height 46px
+            padding 0 12px
+            border-radius 8px
+            border 1px solid alpha(#ffffff, 0.18)
+            background alpha(#ffffff, 0.05)
+            color inherit
+            font-size 0.95rem
+            transition border-color 0.2s
+
+            &::placeholder
+                color alpha(#ffffff, 0.32)
+
+            &:focus
+                border-color #ffceca
+
+    .account-error
+        margin-bottom 0.9em
+        color #ff87a2
+        font-size 0.8rem
+        line-height 1.4
+
+        &.is-hidden
+            display none
+
+    .account-submit
+        display block
+        width 100%
+        height 50px
+        line-height 50px
+        padding 0
+        border-color alpha(#ffceca, 0.8)
+        color #ffceca
+        font-weight 700
+        font-size 0.95rem
+        cursor pointer
+
+        html:not(.is-mode-touch) &:not(:disabled):hover
+            border-color #ffceca
+            background alpha(#ffceca, 0.08)
+
+        &:disabled
+            opacity 0.6
+            cursor default
+
+    .account-note
+        margin-top 1em
+        font-size 0.7rem
+        line-height 1.4
+        text-align center
+        opacity 0.45
+
+// 别人头顶的昵称名牌（跟着车或人投影到屏幕上）
+.nametags
+    position fixed
+    top 0
+    left 0
+    width 100%
+    height 100%
+    z-index 99998
+    pointer-events none
+    overflow hidden
+
+.nametag
+    display none
+    position absolute
+    top 0
+    left 0
+    padding 2px 8px
+    border-radius 999px
+    background alpha(#000000, 0.55)
+    color #ffffff
+    font-family "Nunito", sans-serif
+    font-size 12px
+    line-height 1.5
+    font-weight 600
+    white-space nowrap
+    text-shadow 0 1px 2px alpha(#000000, 0.6)
