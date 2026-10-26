@@ -183,6 +183,13 @@ export class Character
 
     toggle()
     {
+        // 正在开船：C 先当成下船。否则人会从船上“下来”，而相机和地图还跟着船跑
+        if(this.game.player.mode === Player.MODE_BOAT)
+        {
+            this.game.player.getOffBoat()
+            return
+        }
+
         if(this.active)
         {
             // Character is out => Try to enter the vehicle
@@ -205,7 +212,7 @@ export class Character
         const vehicleForward = this.game.physicalVehicle.forward
         const side = new THREE.Vector3(vehicleForward.z, 0, - vehicleForward.x).normalize()
 
-        this.position.set(
+        const position = new THREE.Vector3(
             vehiclePosition.x + side.x * 2.1,
             vehiclePosition.y,
             vehiclePosition.z + side.z * 2.1
@@ -213,23 +220,34 @@ export class Character
 
         // Freeze vehicle
         this.game.physicalVehicle.deactivate()
+
+        this.activateAt(position, Math.atan2(vehicleForward.x, vehicleForward.z))
+    }
+
+    /**
+     * 把人放到世界里任意一个坐标上（开船下船时落到最近的岸上走的就是这条路）。
+     * 只管“放出人”，车冻不冻由调用方决定——走路本来是下车状态，所以顺手锁了 player.state。
+     */
+    activateAt(position, rotationY = this.rotationY)
+    {
         this.game.player.state = Player.STATE_LOCKED
 
         // Activate character
         this.active = true
         this.body.setEnabled(true)
-        this.body.setTranslation(this.position, true)
+        this.body.setTranslation(position, true)
         this.verticalVelocity = 0
         this.speed = 0
         this.animationSpeed = 0
         this.grounded = false
         this.fallStart = null
-        this.rotationY = Math.atan2(vehicleForward.x, vehicleForward.z)
+        this.position.copy(position)
+        this.rotationY = rotationY
         this.object3D.visible = true
         this.object3D.position.set(
-            this.position.x,
-            this.position.y - this.settings.capsuleRadius - this.settings.capsuleHalfHeight,
-            this.position.z
+            position.x,
+            position.y - this.settings.capsuleRadius - this.settings.capsuleHalfHeight,
+            position.z
         )
         this.object3D.quaternion.setFromAxisAngle(this.upAxis, this.rotationY + this.settings.facingOffset)
         this.setAnimation('idle')
@@ -241,6 +259,19 @@ export class Character
         // View > Focus point
         this.game.view.focusPoint.isTracking = true
         this.game.view.focusPoint.trackedPosition.copy(this.position)
+    }
+
+    /**
+     * 把人收起来，但不把方向盘交回给车（上船：人不见了，车仍然冻在岸边）。
+     */
+    deactivate()
+    {
+        this.active = false
+        this.object3D.visible = false
+        this.body.setEnabled(false)
+        this.speed = 0
+        this.animationSpeed = 0
+        this.verticalVelocity = 0
     }
 
     enterVehicle()
@@ -269,12 +300,7 @@ export class Character
         }
 
         // Deactivate character
-        this.active = false
-        this.object3D.visible = false
-        this.body.setEnabled(false)
-        this.speed = 0
-        this.animationSpeed = 0
-        this.verticalVelocity = 0
+        this.deactivate()
 
         // Unfreeze vehicle
         this.game.physicalVehicle.activate()

@@ -29,6 +29,7 @@ export class Map
         
         this.setLocations()
         this.setPlayer()
+        this.setBoats()
         this.setTexture()
 
         this.game.ticker.events.on('tick', () =>
@@ -187,7 +188,69 @@ export class Map
 
             this.player.element.style.left = `${x}%`
             this.player.element.style.top = `${y}%`
-            this.player.element.style.transform = `rotate(${-this.game.physicalVehicle.yRotation}rad)`
+            // 开船时箭头跟着船转（getActiveVehicle 零分支）
+            this.player.element.style.transform = `rotate(${-this.game.player.getActiveVehicle().yRotation}rad)`
+        }
+
+        this.updateBoats()
+    }
+
+    /**
+     * 地图上给每条船一个会随船移动 / 旋转的图标（像车那样）。
+     * Map 比 Boats 先建，所以这里拿不到船也没关系：updateBoats 里会按需补建。
+     */
+    setBoats()
+    {
+        this.boats = {}
+        this.boats.elements = {}
+
+        const boats = this.game.boats
+
+        if(!boats)
+            return
+
+        for(const boat of boats.list)
+            this.createBoatElement(boat)
+    }
+
+    createBoatElement(boat)
+    {
+        const el = document.createElement('div')
+        el.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;'
+
+        // 一个向上指的青绿三角，用 rotate(-yRotation) 把船头方向映到图上
+        const arrow = document.createElement('div')
+        arrow.style.cssText = 'width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:15px solid #4dd6ff;filter:drop-shadow(0 0 3px #251f2b);transform:translate(-50%,-50%);'
+        el.appendChild(arrow)
+
+        this.element.appendChild(el)
+
+        this.boats.elements[boat.id] = { el, arrow }
+    }
+
+    updateBoats()
+    {
+        const boats = this.game.boats
+
+        if(!boats || !this.boats || !this.boats.elements)
+            return
+
+        for(const boat of boats.list)
+        {
+            let entry = this.boats.elements[boat.id]
+
+            if(!entry)
+            {
+                this.createBoatElement(boat)
+                entry = this.boats.elements[boat.id]
+            }
+
+            const pos = boat.position
+            const coords = this.worldToMap({ x: Math.round(pos.x), z: Math.round(pos.z) })
+
+            entry.el.style.left = `${coords.x * 100}%`
+            entry.el.style.top = `${coords.y * 100}%`
+            entry.arrow.style.transform = `translate(-50%,-50%) rotate(${-boat.yRotation}rad)`
         }
     }
 }

@@ -29,8 +29,10 @@ import { Fences } from './Fences.js'
 import { Benches } from './Benches.js'
 import { Scenery } from './Scenery.js'
 import { Spiderman } from './Spiderman.js'
+import { Garden } from './Garden.js'
 import { PandoraFence } from './PandoraFence.js'
 import { Territory } from './Territory.js'
+import { Boats } from './Boats.js'
 
 export class World
 {
@@ -82,8 +84,12 @@ export class World
             this.scenery = new Scenery()
             this.areas = new Areas()
             this.spiderman = new Spiderman()
+            this.garden = new Garden()
             this.pandoraFence = new PandoraFence()
             this.territory = new Territory()
+
+            // 可驾驶的船：必须在 floor（要读地形顶点算水深）以及 player / interactivePoints / map 都建好之后
+            this.boats = new Boats()
         }
         else if(step === 2)
         {
