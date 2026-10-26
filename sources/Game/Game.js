@@ -303,6 +303,13 @@ export class Game
             // Camera 恢复
             this.train.detachCamera(this.view.camera)
 
+            // 同步 focusPoint 和 defaultCamera 到下车位置，避免跳跃
+            this.view.focusPoint.isTracking = false
+            this.view.focusPoint.position.copy(exitPos)
+            this.view.focusPoint.smoothedPosition.copy(exitPos)
+            this.view.defaultCamera.position.copy(exitPos).add(this.view.spherical.offset)
+            this.view.defaultCamera.lookAt(exitPos)
+
             // 火车停车
             this.train.setRunning(false)
 
