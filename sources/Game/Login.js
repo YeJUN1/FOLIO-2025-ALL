@@ -17,10 +17,13 @@ export class Login
 {
     static STORAGE_KEY = 'folioAccounts'
     static SESSION_KEY = 'folioSession'
+    static ATTEMPTS_KEY = 'folioLoginAttempts'
     static FIRST_LOGIN_BONUS = 5000
     static PASSWORD_ALGO = 'pbkdf2-sha256'
     static PASSWORD_ITERATIONS = 210000
     static PASSWORD_SALT_BYTES = 16
+    static MAX_ATTEMPTS = 3
+    static LOCK_DURATION = 60 * 1000
 
     constructor()
     {
@@ -30,6 +33,11 @@ export class Login
         this.element = this.modal ? this.modal.element : null
         this.current = null
         this.pendingSpawn = null
+        this.busy = false
+        this.attempts = this.readAttempts()
+        this.lockUiKey = null
+        this.lockKeyShown = false
+        this.lockSecondsShown = null
 
         if(this.element)
             this.setDom()
@@ -105,6 +113,8 @@ export class Login
 
     update()
     {
+        this.updateLockUi()
+
         if(!this.pendingSpawn)
             return
 
@@ -161,6 +171,111 @@ export class Login
     writeStore(store)
     {
         localStorage.setItem(Login.STORAGE_KEY, JSON.stringify(store))
+    }
+
+    readAttempts()
+    {
+        try
+        {
+            const attempts = JSON.parse(localStorage.getItem(Login.ATTEMPTS_KEY))
+
+            if(attempts && typeof attempts === 'object')
+                return attempts
+        }
+        catch(error)
+        {
+            // Corrupted storage => start over
+        }
+
+        return {}
+    }
+
+    writeAttempts()
+    {
+        localStorage.setItem(Login.ATTEMPTS_KEY, JSON.stringify(this.attempts))
+    }
+
+    getRemainingLock(_key)
+    {
+        const record = this.attempts[_key]
+
+        if(!record || !record.lockedUntil)
+            return 0
+
+        return Math.max(0, record.lockedUntil - Date.now())
+    }
+
+    registerFailure(_key)
+    {
+        const record = this.attempts[_key] || { failures: 0, lockedUntil: 0 }
+
+        record.failures += 1
+
+        // Too many wrong passwords => lock this name for a minute. The counter
+        // restarts once the lock is over, so the user gets three fresh tries.
+        if(record.failures >= Login.MAX_ATTEMPTS)
+        {
+            record.failures = 0
+            record.lockedUntil = Date.now() + Login.LOCK_DURATION
+        }
+
+        this.attempts[_key] = record
+        this.writeAttempts()
+
+        return record
+    }
+
+    clearFailures(_key)
+    {
+        if(!this.attempts[_key])
+            return
+
+        delete this.attempts[_key]
+        this.writeAttempts()
+    }
+
+    // Keeps the form in sync with the lockout: live countdown, disabled login
+    // button, and a message once the wait is over. Runs every frame.
+    updateLockUi()
+    {
+        if(!this.nameInput || !this.submitButton)
+            return
+
+        const key = this.normalize(this.nameInput.value)
+
+        if(key !== this.lockUiKey)
+        {
+            this.lockUiKey = key
+            this.lockKeyShown = false
+            this.lockSecondsShown = null
+        }
+
+        const remaining = this.getRemainingLock(key)
+
+        if(remaining > 0)
+        {
+            const seconds = Math.ceil(remaining / 1000)
+
+            this.submitButton.disabled = true
+            this.lockKeyShown = true
+
+            if(seconds !== this.lockSecondsShown)
+            {
+                this.lockSecondsShown = seconds
+                this.showMessage(`密码已经错了 ${Login.MAX_ATTEMPTS} 次，请等 1 分钟后再登录（还剩 ${seconds} 秒）`)
+            }
+
+            return
+        }
+
+        this.submitButton.disabled = this.busy
+
+        if(this.lockKeyShown)
+        {
+            this.lockKeyShown = false
+            this.lockSecondsShown = null
+            this.showMessage('可以重新登录了')
+        }
     }
 
     normalize(_name)
@@ -241,6 +356,7 @@ export class Login
 
         const name = this.nameInput.value.trim()
         const password = this.passwordInput.value
+        const key = this.normalize(name)
 
         if(name.length < 1)
         {
@@ -256,6 +372,16 @@ export class Login
             return
         }
 
+        // Three wrong passwords for this name => one minute of waiting.
+        const remainingLock = this.getRemainingLock(key)
+
+        if(remainingLock > 0)
+        {
+            this.showMessage(`密码已经错了 ${Login.MAX_ATTEMPTS} 次，请等 1 分钟后再登录（还剩 ${Math.ceil(remainingLock / 1000)} 秒）`)
+            this.passwordInput.focus()
+            return
+        }
+
         if(password.length < 4)
         {
             this.showMessage('密码至少要 4 位')
@@ -266,7 +392,6 @@ export class Login
         this.setBusy(true)
 
         const store = this.readStore()
-        const key = this.normalize(name)
         const supportsPbkdf2 = !!crypto.subtle
 
         if(_mode === 'register')
@@ -298,6 +423,7 @@ export class Login
 
             store.accounts[key] = account
             this.writeStore(store)
+            this.clearFailures(key)
             this.signIn(account)
         }
         else
@@ -347,11 +473,18 @@ export class Login
 
             if(!valid)
             {
-                this.showMessage('密码不对，再试一次')
+                const record = this.registerFailure(key)
+
+                if(record.lockedUntil > Date.now())
+                    this.showMessage(`密码已经错了 ${Login.MAX_ATTEMPTS} 次，请等 1 分钟后再登录`)
+                else
+                    this.showMessage(`密码不对，再试一次（还剩 ${Login.MAX_ATTEMPTS - record.failures} 次）`)
+
                 this.setBusy(false)
                 return
             }
 
+            this.clearFailures(key)
             this.signIn(account)
         }
 
@@ -584,11 +717,16 @@ export class Login
 
     setBusy(_busy)
     {
+        this.busy = _busy
+
         if(!this.form)
             return
 
         this.form.classList.toggle('is-disabled', _busy)
-        this.submitButton.disabled = _busy
+
+        const locked = this.nameInput && this.getRemainingLock(this.normalize(this.nameInput.value)) > 0
+
+        this.submitButton.disabled = _busy || locked
         this.registerButton.disabled = _busy
     }
 
