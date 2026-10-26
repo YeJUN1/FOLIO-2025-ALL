@@ -2,13 +2,23 @@
     "_help": [
         "「划地盘」领地围栏布局唯一数据源：改范围/密度只改这里，无需动代码。",
         "rect: 红框在世界坐标系的矩形（x/z 各覆盖 [-96,96]，由地图截图经白色 pin 标定，见 docs/划地盘.md）。",
+        "2026-10-24 按手绘红框改大：北界 26.3→28.7 避开唐一琳（他南界 27.4），西界 18.6→-13.5（手绘到 -18.6，但撞龚浩翔 10-21 新围栏区 x ≤ -13.5，按登记册「后划者收边」退回贴边）。",
         "scale: 栏杆件整体缩放（件原始 宽1.12×高0.53×厚0.09 米）；height≈0.53*scale。",
         "overlap: 相邻件的间距系数，=1 首尾相接，<1 轻微重叠遮缝，>1 留空隙。",
-        "yOffset: 整体竖直偏移(米)；minAboveWater: 件底至少高出水面的距离(米)，防止落到海里被淹。"
+        "yOffset: 整体竖直偏移(米)；minAboveWater: 件底至少高出水面的距离(米)，防止落到海里被淹。",
+        "defense: 导弹防御。enabled 总开关；countdown 进入后几秒被炸；skyHeight 起落高度(米)；missileScale 导弹缩放；respawnDelay 炸后多久送回出生点(秒)。",
+        "导弹判定只看 rect 内与否（TerritoryDefense.update），与碰撞无关：所以从门里开进来一样会被锁定。"
     ],
-    "rect": { "minX": 18.6, "maxX": 95.1, "minZ": 26.3, "maxZ": 94.4 },
+    "rect": { "minX": -13.5, "maxX": 95.1, "minZ": 28.7, "maxZ": 94.4 },
     "scale": 2,
     "overlap": 0.95,
     "yOffset": 0,
-    "minAboveWater": 0.05
+    "minAboveWater": 0.05,
+    "defense": {
+        "enabled": true,
+        "countdown": 3,
+        "skyHeight": 50,
+        "missileScale": 4,
+        "respawnDelay": 1.2
+    }
 }
