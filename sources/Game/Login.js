@@ -6,8 +6,10 @@ import { Game } from './Game.js'
  * Local account system.
  *
  * Accounts live in localStorage (no server in this project), passwords are
- * stored as SHA-256 hashes. The very first successful verification of an
- * account grants 5000 points — once and only once per account.
+ * stored as slow PBKDF2-SHA256 hashes with a random per-account salt. Accounts
+ * created by the old unsalted SHA-256 scheme are re-hashed automatically the
+ * next time their password is verified. The very first successful verification
+ * of an account grants 5000 points — once and only once per account.
  * A successful login teleports the player to the plot that account owns
  * (see `Territory.members`).
  */
@@ -16,6 +18,9 @@ export class Login
     static STORAGE_KEY = 'folioAccounts'
     static SESSION_KEY = 'folioSession'
     static FIRST_LOGIN_BONUS = 5000
+    static PASSWORD_ALGO = 'pbkdf2-sha256'
+    static PASSWORD_ITERATIONS = 210000
+    static PASSWORD_SALT_BYTES = 16
 
     constructor()
     {
@@ -163,7 +168,53 @@ export class Login
         return _name.trim().toLowerCase()
     }
 
-    async hash(_name, _password)
+    toHex(_bytes)
+    {
+        return Array.from(_bytes)
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('')
+    }
+
+    fromHex(_hex)
+    {
+        return new Uint8Array(_hex.match(/.{2}/g).map((pair) => parseInt(pair, 16)))
+    }
+
+    randomSalt()
+    {
+        const bytes = crypto.getRandomValues(new Uint8Array(Login.PASSWORD_SALT_BYTES))
+
+        return this.toHex(bytes)
+    }
+
+    // Slow, salted hash. The salt is stored next to the hash, so two accounts
+    // sharing the same password still end up with completely different hashes.
+    async derivePassword(_password, _saltHex, _iterations = Login.PASSWORD_ITERATIONS)
+    {
+        const key = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(_password),
+            'PBKDF2',
+            false,
+            [ 'deriveBits' ]
+        )
+        const bits = await crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                hash: 'SHA-256',
+                salt: this.fromHex(_saltHex),
+                iterations: _iterations,
+            },
+            key,
+            256
+        )
+
+        return this.toHex(new Uint8Array(bits))
+    }
+
+    // The previous scheme (fast, unsalted SHA-256). Kept only to verify old
+    // accounts once, right before their password is re-hashed with PBKDF2.
+    async legacyHash(_name, _password)
     {
         const data = new TextEncoder().encode(`${this.normalize(_name)}\\u0000${_password}`)
 
@@ -171,9 +222,7 @@ export class Login
         {
             const buffer = await crypto.subtle.digest('SHA-256', data)
 
-            return Array.from(new Uint8Array(buffer))
-                .map((byte) => byte.toString(16).padStart(2, '0'))
-                .join('')
+            return this.toHex(new Uint8Array(buffer))
         }
 
         // crypto.subtle is unavailable outside secure contexts
@@ -218,7 +267,7 @@ export class Login
 
         const store = this.readStore()
         const key = this.normalize(name)
-        const passwordHash = await this.hash(name, password)
+        const supportsPbkdf2 = !!crypto.subtle
 
         if(_mode === 'register')
         {
@@ -229,10 +278,18 @@ export class Login
                 return
             }
 
+            const salt = supportsPbkdf2 ? this.randomSalt() : null
+            const passwordHash = supportsPbkdf2
+                ? await this.derivePassword(password, salt)
+                : await this.legacyHash(name, password)
+
             const account = {
                 key,
                 name,
                 passwordHash,
+                passwordSalt: salt,
+                passwordAlgo: supportsPbkdf2 ? Login.PASSWORD_ALGO : null,
+                passwordIterations: supportsPbkdf2 ? Login.PASSWORD_ITERATIONS : null,
                 points: 0,
                 firstBonusClaimed: false,
                 createdAt: Date.now(),
@@ -254,7 +311,41 @@ export class Login
                 return
             }
 
-            if(account.passwordHash !== passwordHash)
+            let valid = false
+
+            if(supportsPbkdf2 && account.passwordAlgo === Login.PASSWORD_ALGO && account.passwordSalt)
+            {
+                const passwordHash = await this.derivePassword(
+                    password,
+                    account.passwordSalt,
+                    account.passwordIterations || Login.PASSWORD_ITERATIONS
+                )
+
+                valid = passwordHash === account.passwordHash
+            }
+            else
+            {
+                const passwordHash = await this.legacyHash(name, password)
+
+                valid = passwordHash === account.passwordHash
+
+                // Old, unsalted account: upgrade it now that we know the
+                // password. Written before signIn() re-reads the store.
+                if(valid && supportsPbkdf2)
+                {
+                    const salt = this.randomSalt()
+
+                    account.passwordHash = await this.derivePassword(password, salt)
+                    account.passwordSalt = salt
+                    account.passwordAlgo = Login.PASSWORD_ALGO
+                    account.passwordIterations = Login.PASSWORD_ITERATIONS
+
+                    store.accounts[key] = account
+                    this.writeStore(store)
+                }
+            }
+
+            if(!valid)
             {
                 this.showMessage('密码不对，再试一次')
                 this.setBusy(false)
