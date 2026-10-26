@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu'
+import { clamp } from '../utilities/maths.js'
 import { Game } from '../Game.js'
 import { TrackPath } from './TrackPath.js'
 
@@ -8,36 +9,73 @@ export class Train
     {
         this.game = Game.getInstance()
 
-        this.state = 'idle' // idle | running | paused | boarded
-        this.speed = 12 // m/s 巡航速度
-        this.speedTarget = 12
-        this.acceleration = 2.5
-        this.direction = 1 // 1 正向，-1 反向
-
-        // 曲线上的位置（0~1）
+        this.state = 'idle'           // idle | running | paused | boarding
+        this.speed = 0
+        this.cruiseSpeed = 14          // m/s 巡航速度
+        this.stopSpeed = 0.5           // 站台附近自动减速的低速
+        this.acceleration = 1.8
+        this.direction = 1
         this.t = 0
 
+        // 站台在 t=0 附近，±0.005 范围内自动减速停靠
+        this.stationT = 0
+        this.stationHalfRange = 0.008
+        this.stopDuration = 4          // 停靠秒数
+        this.stopTimer = 0
+
+        // === 乘客视角偏移（鼠标可左右/上下看风景）===
+        this.viewYaw = 0               // 水平旋转（弧度）
+        this.viewPitch = 0             // 垂直旋转（弧度，正=抬头）
+        this.viewSensitivity = 0.0025
+        this.viewPitchClamp = 0.8      // ±0.8 rad ≈ ±46° 上下范围
+        this.viewDecay = 0.3           // 每帧自动归零的比例（松手后视角慢慢回到正前方）
+
         this.trackPath = new TrackPath()
-
         this.setVisual()
-        this.setSound()
 
-        // Tick 更新
-        this.game.ticker.events.on('tick', () =>
-        {
-            this.update()
-        }, 8)
-
-        // 初始位姿
+        this.game.ticker.events.on('tick', () => { this.update() }, 8)
         this.applyPose()
 
         if(this.game.debug.active)
         {
             const panel = this.game.debug.panel.addFolder({ title: '🚆 Train', expanded: true })
-            panel.addBinding(this, 'speedTarget', { min: 0, max: 30, step: 0.5 })
-            panel.addBinding(this, 't', { min: 0, max: 1, step: 0.001 }).on('change', () => this.applyPose())
+            panel.addBinding(this, 'cruiseSpeed', { min: 2, max: 25, step: 0.5 })
+            panel.addBinding(this, 't', { min: 0, max: 1, step: 0.0005 }).on('change', () => this.applyPose())
             panel.addButton({ title: 'toggleRun' }).on('click', () => this.toggleRun())
         }
+    }
+
+    toggleRun()
+    {
+        if(this.state === 'running') this.state = 'paused'
+        else if(this.state === 'idle' || this.state === 'paused') this.state = 'running'
+    }
+
+    setRunning(running)
+    {
+        if(running) this.state = 'running'
+        else if(this.state === 'running') this.state = 'paused'
+    }
+
+    /**
+     * 玩家请求上车 —— 把火车派到站台等
+     */
+    requestPickup()
+    {
+        // 直接把火车定位到站台（t=0），停稳
+        this.t = this.stationT
+        this.applyPose()
+        this.state = 'paused'
+        this.speed = 0
+        this.stopTimer = 0
+    }
+
+    /**
+     * 上车成功后启动
+     */
+    startMoving()
+    {
+        this.state = 'running'
     }
 
     setVisual()
@@ -46,232 +84,435 @@ export class Train
         this.group.name = 'Train'
         this.game.scene.add(this.group)
 
-        // === 车头 ===
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xcc3333, metalness: 0.4, roughness: 0.5 })
-        const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.6, roughness: 0.3 })
-        const windowMat = new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.3, roughness: 0.2, transparent: true, opacity: 0.8 })
-        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.5, roughness: 0.4 })
+        // 材质
+        const redMat      = new THREE.MeshStandardMaterial({ color: 0xc8102e, metalness: 0.5, roughness: 0.4 })
+        const redDarkMat  = new THREE.MeshStandardMaterial({ color: 0x8a0a20, metalness: 0.6, roughness: 0.35 })
+        const creamMat    = new THREE.MeshStandardMaterial({ color: 0xf5f0d8, metalness: 0.15, roughness: 0.5 })
+        const grayMat     = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: 0.6, roughness: 0.3 })
+        const blackMat    = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.7, roughness: 0.3 })
+        const wheelMat    = new THREE.MeshStandardMaterial({ color: 0x0d0d0d, metalness: 0.5, roughness: 0.4 })
+        const windowMat   = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.4, roughness: 0.15, transparent: true, opacity: 0.85 })
+        const glassMat    = new THREE.MeshStandardMaterial({ color: 0x88bbff, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.3 })
+        const chromeMat   = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 })
+        const brassMat    = new THREE.MeshStandardMaterial({ color: 0xd4a017, metalness: 0.85, roughness: 0.25 })
+        const coalMat     = new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.2, roughness: 0.9 })
 
-        // 车头主体（x 轴为前后方向，沿曲线 tangent 前进）
-        const bodyGeo = new THREE.BoxGeometry(6, 2, 2.8)
-        const body = new THREE.Mesh(bodyGeo, bodyMat)
-        body.position.y = 1.5
-        body.castShadow = true
-        body.receiveShadow = true
-        this.group.add(body)
+        // === 车头（蒸汽机车风格，x+ 为前方）===
+        const loco = new THREE.Group()
 
-        // 车头驾驶舱（在前方 +x 端顶部）
-        const cabGeo = new THREE.BoxGeometry(2, 1.3, 2.4)
-        const cab = new THREE.Mesh(cabGeo, darkMat)
-        cab.position.set(1.8, 2.9, 0)
-        cab.castShadow = true
-        this.group.add(cab)
+        // 锅炉主体（圆柱 + 半球头）
+        const boilerCyl = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 4.2, 20), redMat)
+        boilerCyl.rotation.z = Math.PI * 0.5
+        boilerCyl.position.set(0.5, 1.6, 0)
+        boilerCyl.castShadow = true; boilerCyl.receiveShadow = true
+        loco.add(boilerCyl)
 
-        // 前挡风玻璃
-        const windshieldGeo = new THREE.PlaneGeometry(1.8, 1.1)
-        const windshield = new THREE.Mesh(windshieldGeo, windowMat)
-        windshield.position.set(2.81, 2.9, 0)
-        windshield.rotation.y = Math.PI * 0.5
-        this.group.add(windshield)
+        const boilerCap = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12, 0, Math.PI), redMat)
+        boilerCap.rotation.z = Math.PI * 0.5
+        boilerCap.position.set(2.6, 1.6, 0)
+        boilerCap.castShadow = true
+        loco.add(boilerCap)
 
-        // 侧面窗户（2 个）
-        const sideWinGeo = new THREE.PlaneGeometry(1.6, 0.7)
-        const winL = new THREE.Mesh(sideWinGeo, windowMat)
-        winL.position.set(1.8, 2.9, 1.21)
-        winL.rotation.y = Math.PI
-        this.group.add(winL)
-        const winR = new THREE.Mesh(sideWinGeo, windowMat)
-        winR.position.set(1.8, 2.9, -1.21)
-        this.group.add(winR)
+        // 锅炉细条纹（金属带）
+        for(let i = -1; i <= 1; i++)
+        {
+            const band = new THREE.Mesh(
+                new THREE.TorusGeometry(1.12, 0.06, 6, 20),
+                redDarkMat
+            )
+            band.rotation.y = Math.PI * 0.5
+            band.position.set(0.5 + i * 1.2, 1.6, 0)
+            loco.add(band)
+        }
 
         // 烟囱
-        const chimneyGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.6, 12)
-        const chimney = new THREE.Mesh(chimneyGeo, darkMat)
-        chimney.position.set(-0.5, 2.9, 0)
+        const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.2, 16), blackMat)
+        chimney.position.set(-1.2, 3.2, 0)
         chimney.castShadow = true
-        this.group.add(chimney)
+        loco.add(chimney)
+        const chimneyTop = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.25, 16), brassMat)
+        chimneyTop.position.set(-1.2, 3.9, 0)
+        loco.add(chimneyTop)
 
-        // === 乘客车厢（先 2 节原型）===
-        const carriageMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.2, roughness: 0.5 })
-        const carriageMat2 = new THREE.MeshStandardMaterial({ color: 0x5588bb, metalness: 0.2, roughness: 0.5 })
+        // 驾驶舱（驾驶室）— 在锅炉后方
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.9, 2.5), blackMat)
+        cab.position.set(-2.4, 2.7, 0)
+        cab.castShadow = true
+        loco.add(cab)
 
-        const carriageLength = 5
-        const carriageGap = 0.3
-        const carriage1 = this.buildCarriage(carriageLength, bodyMat, windowMat, wheelMat)
-        carriage1.position.x = -(carriageLength * 0.5 + carriageGap + 3)
-        this.group.add(carriage1)
+        // 驾驶室两侧窗户
+        {
+            const winGeo = new THREE.PlaneGeometry(1.3, 1.1)
+            const winL = new THREE.Mesh(winGeo, glassMat)
+            winL.position.set(-2.4, 2.9, 1.26); winL.rotation.y = Math.PI; loco.add(winL)
+            const winR = new THREE.Mesh(winGeo, glassMat)
+            winR.position.set(-2.4, 2.9, -1.26); loco.add(winR)
+        }
 
-        const carriage2 = this.buildCarriage(carriageLength, carriageMat2, windowMat, wheelMat)
-        carriage2.position.x = -(carriageLength * 1.5 + carriageGap * 2 + 3)
-        this.group.add(carriage2)
+        // 前挡风玻璃（半球头前方）
+        const windshield = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), glassMat)
+        windshield.position.set(3.1, 2.1, 0)
+        windshield.rotation.y = Math.PI * 0.5
+        loco.add(windshield)
 
-        // === 轮子（车头 4 个，每节车厢 4 个）===
-        // 我们用 InstancedMesh 一次性把所有轮子做出来 —— 简化：先车头 4 个
-        this.setWheels()
+        // 前灯（车头正前方）
+        const headlight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), brassMat)
+        headlight.position.set(3.3, 1.8, 0)
+        loco.add(headlight)
 
-        // === 座舱 Camera 挂点 ===
-        this.cockpit = new THREE.Group()
-        this.cockpit.position.set(1.5, 2.8, 0) // 驾驶舱内部
-        this.group.add(this.cockpit)
+        // 车灯光源（真正照亮前方）
+        const headLight = new THREE.PointLight(0xfff0c0, 1.2, 20, 1.5)
+        headLight.position.set(3.5, 1.8, 0)
+        loco.add(headLight)
+        this.headLight = headLight
 
-        // 乘客座舱（挂在车厢 1 里）
-        this.passengerCockpit = new THREE.Group()
-        this.passengerCockpit.position.set(carriage1.position.x, 2.5, 0)
-        this.group.add(this.passengerCockpit)
+        // 挂钩（前后）
+        const couplerFront = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), grayMat)
+        couplerFront.position.set(3.4, 0.55, 0); loco.add(couplerFront)
+        const couplerBack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), grayMat)
+        couplerBack.position.set(-3.5, 0.55, 0); loco.add(couplerBack)
 
-        this.setVisual = undefined // 只跑一次
+        // 底盘（连接锅炉和轮子）
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.4, 2.4), blackMat)
+        frame.position.set(0.3, 0.7, 0); frame.castShadow = true; frame.receiveShadow = true
+        loco.add(frame)
+
+        // 轮子 —— 4 个大驱动轮 + 2 个前轮
+        this._wheels = []
+        const bigWheelGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.35, 20)
+        bigWheelGeo.rotateZ(Math.PI * 0.5)
+        const smallWheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.25, 16)
+        smallWheelGeo.rotateZ(Math.PI * 0.5)
+        const rimGeo = new THREE.TorusGeometry(0.9, 0.05, 4, 20)
+
+        const bigWp = [ { x: 0.5 }, { x: -0.8 }, { x: -2.1 }, { x: 1.8 } ]
+        for(const w of bigWp)
+        {
+            for(const zoff of [1.3, -1.3])
+            {
+                const wheel = new THREE.Mesh(bigWheelGeo, wheelMat)
+                wheel.position.set(w.x, 0.9, zoff)
+                wheel.castShadow = true
+                loco.add(wheel)
+                // 金属 rim
+                const rim = new THREE.Mesh(rimGeo, chromeMat)
+                rim.position.set(w.x, 0.9, zoff + (zoff > 0 ? 0.18 : -0.18))
+                rim.rotation.y = Math.PI * 0.5
+                loco.add(rim)
+                this._wheels.push(wheel)
+            }
+        }
+
+        // 前轮（转向架）
+        for(const zoff of [1.3, -1.3])
+        {
+            const wheel = new THREE.Mesh(smallWheelGeo, wheelMat)
+            wheel.position.set(2.9, 0.45, zoff); wheel.castShadow = true
+            loco.add(wheel); this._wheels.push(wheel)
+        }
+
+        loco.position.set(0, 0, 0)
+        this.group.add(loco)
+        this.loco = loco
+
+        // === 煤水车（车头后面，装煤和水）===
+        const tender = this.buildTender()
+        tender.position.x = -6.0
+        this.group.add(tender)
+        this.tender = tender
+
+        // === 3 节乘客车厢 ===
+        const cars = []
+        for(let i = 0; i < 3; i++)
+        {
+            const car = this.buildPassengerCar(i)
+            car.position.x = -(9.0 + i * 6.0)
+            cars.push(car)
+            this.group.add(car)
+        }
+        this.passengerCars = cars
+
+        // === 挂点 ===
+        // 驾驶员视角（驾驶室里）
+        this.driverSeat = new THREE.Group()
+        this.driverSeat.position.set(-2.4, 2.6, 0)
+        loco.add(this.driverSeat)
+
+        // 乘客视角（第一节车厢中间）
+        this.passengerSeat = new THREE.Group()
+        this.passengerSeat.position.set(cars[0].position.x, 2.3, 0)
+        this.group.add(this.passengerSeat)
     }
 
-    buildCarriage(length, mat, windowMat, wheelMat)
+    buildTender()
     {
-        const group = new THREE.Group()
+        const g = new THREE.Group()
+        const blackMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5, roughness: 0.5 })
+        const coalMat  = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 0.1, roughness: 0.95 })
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0d, metalness: 0.5, roughness: 0.4 })
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 })
 
-        const bodyGeo = new THREE.BoxGeometry(length, 2.2, 2.8)
-        const body = new THREE.Mesh(bodyGeo, mat)
-        body.position.y = 1.5
-        body.castShadow = true
-        body.receiveShadow = true
-        group.add(body)
+        // 煤水车车身
+        const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2.2, 2.4), blackMat)
+        body.position.y = 1.3; body.castShadow = true; body.receiveShadow = true
+        g.add(body)
 
-        // 连续窗户
-        const winCount = Math.floor(length / 1.2)
+        // 煤堆（顶部一滩黑色三角体）
+        const coal = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.2, 6), coalMat)
+        coal.position.y = 2.5; g.add(coal)
+
+        // 水罐（旁边的圆罐）
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 2.5, 14), chromeMat)
+        tank.rotation.z = Math.PI * 0.5
+        tank.position.set(0, 1.3, 1.1)
+        g.add(tank)
+
+        // 轮子（4 个小轮）
+        const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.25, 14)
+        wheelGeo.rotateZ(Math.PI * 0.5)
+        const wps = [ { x: -1.2 }, { x: 1.2 } ]
+        for(const w of wps)
+        {
+            for(const zoff of [1.2, -1.2])
+            {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+                wheel.position.set(w.x, 0.4, zoff); wheel.castShadow = true
+                g.add(wheel); this._wheels.push(wheel)
+            }
+        }
+
+        return g
+    }
+
+    buildPassengerCar(index)
+    {
+        const g = new THREE.Group()
+
+        const schemes = [
+            { body: 0xc8102e, stripe: 0xffd54a, roof: 0x2a2a2a },  // 红底金条纹
+            { body: 0x1f5fa0, stripe: 0xf5f0d8, roof: 0x2a2a2a },  // 蓝底奶白条纹
+            { body: 0x2a2a2a, stripe: 0xc8102e, roof: 0x151515 },  // 黑底红条纹
+        ]
+        const s = schemes[index % schemes.length]
+
+        const bodyMat = new THREE.MeshStandardMaterial({ color: s.body, metalness: 0.3, roughness: 0.5 })
+        const stripeMat = new THREE.MeshStandardMaterial({ color: s.stripe, metalness: 0.4, roughness: 0.4 })
+        const roofMat = new THREE.MeshStandardMaterial({ color: s.roof, metalness: 0.5, roughness: 0.4 })
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x88bbff, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.35 })
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0d, metalness: 0.5, roughness: 0.4 })
+
+        const carLen = 5.5
+
+        // 车身（下部矩形 + 上部圆角）
+        const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(carLen, 1.5, 2.6), bodyMat)
+        lowerBody.position.y = 1.2; lowerBody.castShadow = true; lowerBody.receiveShadow = true
+        g.add(lowerBody)
+
+        const upperBody = new THREE.Mesh(new THREE.BoxGeometry(carLen - 0.2, 1.2, 2.4), bodyMat)
+        upperBody.position.y = 2.55; upperBody.castShadow = true
+        g.add(upperBody)
+
+        // 车顶（圆管）
+        const roof = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.22, carLen - 0.3, 16), roofMat)
+        roof.rotation.z = Math.PI * 0.5
+        roof.position.y = 3.15
+        g.add(roof)
+
+        // 车身中部金色横条纹
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(carLen + 0.01, 0.18, 2.61), stripeMat)
+        stripe.position.y = 1.9; g.add(stripe)
+
+        // 窗户 —— 每侧 4 扇
+        const winCount = 4
         for(let i = 0; i < winCount; i++)
         {
-            const x = -length * 0.5 + 0.6 + i * 1.2
-            const winGeo = new THREE.PlaneGeometry(0.8, 0.7)
-            const winL = new THREE.Mesh(winGeo, windowMat)
-            winL.position.set(x, 1.8, 1.41)
-            winL.rotation.y = Math.PI
-            group.add(winL)
-            const winR = new THREE.Mesh(winGeo, windowMat)
-            winR.position.set(x, 1.8, -1.41)
-            group.add(winR)
+            const x = -carLen * 0.5 + 0.7 + i * ((carLen - 1.4) / (winCount - 1 || 1))
+            const winGeo = new THREE.PlaneGeometry(0.9, 0.75)
+
+            const winL = new THREE.Mesh(winGeo, glassMat)
+            winL.position.set(x, 2.6, 1.21); winL.rotation.y = Math.PI
+            g.add(winL)
+
+            const winR = new THREE.Mesh(winGeo, glassMat)
+            winR.position.set(x, 2.6, -1.21)
+            g.add(winR)
         }
 
-        return group
-    }
+        // 车门（前后两端）
+        const doorMat = new THREE.MeshStandardMaterial({ color: s.stripe, metalness: 0.4, roughness: 0.4 })
+        const doorGeo = new THREE.BoxGeometry(0.08, 1.2, 0.7)
+        const doorF = new THREE.Mesh(doorGeo, doorMat)
+        doorF.position.set(carLen * 0.5 + 0.04, 1.9, 0); doorF.rotation.y = Math.PI * 0.5
+        g.add(doorF)
+        const doorB = new THREE.Mesh(doorGeo, doorMat)
+        doorB.position.set(-carLen * 0.5 - 0.04, 1.9, 0); doorB.rotation.y = -Math.PI * 0.5
+        g.add(doorB)
 
-    setWheels()
-    {
-        const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.3, 16)
-        wheelGeo.rotateZ(Math.PI * 0.5) // 让 cylinder 的轴沿 x 方向（横向）
-        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.5, roughness: 0.4 })
-
-        // 先只车头 4 个轮子，简化
+        // 轮子（8 个：每端 4 个转向架）
+        const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.25, 16)
+        wheelGeo.rotateZ(Math.PI * 0.5)
         const wheelPositions = [
-            { x: -2.0, z: 1.5 },
-            { x: -2.0, z: -1.5 },
-            { x: 2.0, z: 1.5 },
-            { x: 2.0, z: -1.5 },
+            { x: -carLen * 0.5 + 0.6 }, { x: -carLen * 0.5 + 1.4 },
+            { x:  carLen * 0.5 - 0.6 }, { x:  carLen * 0.5 - 1.4 },
         ]
-
         for(const wp of wheelPositions)
         {
-            const wheel = new THREE.Mesh(wheelGeo, wheelMat)
-            wheel.position.set(wp.x, 0.45, wp.z)
-            wheel.castShadow = true
-            this.group.add(wheel)
+            for(const zoff of [1.25, -1.25])
+            {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+                wheel.position.set(wp.x, 0.45, zoff)
+                wheel.castShadow = true
+                g.add(wheel)
+                this._wheels.push(wheel)
+            }
         }
-    }
 
-    setSound()
-    {
-        // 预留：车轮滚动声等
-    }
-
-    toggleRun()
-    {
-        if(this.state === 'running')
-            this.state = 'paused'
-        else if(this.state === 'idle' || this.state === 'paused')
-            this.state = 'running'
-    }
-
-    /**
-     * 推进（或刹车）时调用
-     */
-    setRunning(running)
-    {
-        if(running)
-            this.state = 'running'
-        else if(this.state === 'running')
-            this.state = 'paused'
+        return g
     }
 
     update()
     {
-        // 平滑加减速
+        // === 站台检测 —— 接近 t=0 时自动减速 ===
+        const distToStation = Math.min(Math.abs(this.t - this.stationT), Math.abs(this.t - this.stationT + 1))
+        const nearStation = distToStation < this.stationHalfRange
+        let targetSpeed = this.cruiseSpeed
+
         if(this.state === 'running')
         {
-            this.speed += (this.speedTarget - this.speed) * Math.min(1, this.acceleration * this.game.ticker.deltaScaled)
+            if(nearStation) targetSpeed = this.stopSpeed
+            this.speed += (targetSpeed - this.speed) * Math.min(1, this.acceleration * this.game.ticker.deltaScaled)
+        }
+        else if(this.state === 'boarding')
+        {
+            this.speed += (0 - this.speed) * Math.min(1, this.acceleration * 3 * this.game.ticker.deltaScaled)
+            if(this.speed < 0.05) this.speed = 0
+            this.stopTimer += this.game.ticker.deltaScaled
+            if(this.stopTimer > this.stopDuration) { this.state = 'running'; this.stopTimer = 0 }
         }
         else
         {
-            // 刹车减速
             this.speed += (0 - this.speed) * Math.min(1, this.acceleration * 2 * this.game.ticker.deltaScaled)
             if(this.speed < 0.05) this.speed = 0
         }
 
+        // === 推进 ===
         if(this.speed > 0.01)
         {
-            // 沿轨道推进
             const distance = this.speed * this.game.ticker.deltaScaled * this.direction
             this.t = this.trackPath.advance(this.t, distance)
             this.applyPose()
         }
+
+        // === 轮子旋转 ===
+        const wheelSpin = (this.speed / 0.9) * this.game.ticker.deltaScaled * this.direction
+        for(const w of (this._wheels || []))
+            w.rotation.x += wheelSpin
+
+        // === 乘客 camera 跟随（第三人称，从火车后上方看）===
+        if(this._boardedCamera)
+        {
+            this.updateCameraFollow()
+        }
+    }
+
+    /**
+     * 第三人称跟车 —— 手动设位置避免穿箱；朝向叠加玩家鼠标偏移
+     */
+    updateCameraFollow()
+    {
+        const cam = this._boardedCamera
+        if(!cam) return
+
+        const { position, tangent } = this.trackPath.getPoseAt(this.t)
+        const trainPos = this.group.position.clone()
+
+        // tangent.y 取 0 避免坡度影响 camera offset
+        const t = tangent.clone(); t.y = 0; t.normalize()
+
+        // camera 位置：火车后上方 22m + 7m
+        const backOffset = t.clone().multiplyScalar(-22)
+        const upOffset = new THREE.Vector3(0, 7, 0)
+        const desiredPos = trainPos.clone().add(backOffset).add(upOffset)
+
+        // 平滑过渡
+        const lerpK = Math.min(1, 8 * this.game.ticker.deltaScaled)
+        cam.position.lerp(desiredPos, lerpK)
+
+        // === 朝向：基础 lookAt 火车中心 + 玩家 yaw/pitch 偏移 ===
+        const lookAtBase = trainPos.clone().add(new THREE.Vector3(0, 2.5, 0))
+        const baseDir = lookAtBase.sub(cam.position).normalize()
+
+        // 基础方向旋转玩家的 yaw（Y轴）和 pitch（X轴）
+        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.viewYaw)
+        const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.viewPitch)
+        const finalDir = baseDir.applyQuaternion(qYaw).applyQuaternion(qPitch)
+
+        const lookTarget = cam.position.clone().add(finalDir)
+        cam.lookAt(lookTarget)
+
+        // === 视角衰减：松手后慢慢归正前方 ===
+        const decayK = 1 - Math.exp(-this.viewDecay * this.game.ticker.deltaScaled * 60)
+        this.viewYaw *= (1 - decayK * 0.5)
+        this.viewPitch *= (1 - decayK * 0.8)  // pitch 回正更快
     }
 
     applyPose()
     {
         const { position, tangent } = this.trackPath.getPoseAt(this.t)
 
-        // y 轴贴地（暂时假设地面 y ≈ 0，加个小偏移）
         position.y += 0.05
-
         this.group.position.copy(position)
 
-        // 让火车 +x 轴对准 tangent（前进方向）
-        // 先算一个临时"前方"向量 = tangent
-        const tangent3 = tangent.clone() // 已经是世界空间方向
-        tangent3.y = 0
-        tangent3.normalize()
-
-        // 火车 local +x 默认是前进方向，要把它转到 tangent 的世界方向
-        // tangent = (tx, 0, tz)，需要让 local +x 指过去
-        const angleY = Math.atan2(tangent3.x, tangent3.z)
+        // tangent.y 取 0 避免上下坡导致火车翻
+        const t = tangent.clone(); t.y = 0; t.normalize()
+        const angleY = Math.atan2(t.x, t.z)
         this.group.rotation.set(0, angleY - Math.PI * 0.5, 0)
     }
 
-    /**
-     * 把 camera 挂到火车座舱
-     * @param {THREE.Object3D} camera 摄像机
-     */
-    attachCamera(camera)
+    // ==================== Camera attach / detach ====================
+
+    attachCamera(camera, seat = 'passenger')
     {
-        // 记住原来的 parent 和位置
+        // 保存原来的 parent 和变换 —— camera 不 parent 到火车上（避免穿进车厢 Box）
         this._savedCamParent = camera.parent
         this._savedCamPos = camera.position.clone()
         this._savedCamQuat = camera.quaternion.clone()
 
-        // 挂到座舱
-        this.passengerCockpit.add(camera)
-        camera.position.set(0, 0.5, 3) // 在车厢里稍微偏后、偏高
-        camera.rotation.set(0, 0, 0) // 坐面朝前方（车厢 +x 是前方，我们想让 camera 朝 +x）
-        camera.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI * 0.5) // 让 camera lookAt +x 方向
+        this._boardedCamera = camera
+        this._cameraTarget = new THREE.Vector3()
 
-        // View 系统中 camera.parent 变了，需要让 spherical 不覆盖位置
-        if(this.game.view)
+        // 立即把 camera 放到跟车起始位置
+        this.updateCameraFollow()
+
+        // === 安装鼠标监听：让玩家在火车上自由看风景 ===
+        // 注意：不解锁 pointerLock —— 继续让游戏的键盘/输入系统保持工作；
+        // mousemove 的 movementX/movementY 在 pointerLock 下依然能正常给 document 事件
+        this._onBoardMouseMove = (e) =>
         {
-            this.game.view.lockCamera = true
+            this.viewYaw -= e.movementX * this.viewSensitivity
+            this.viewPitch -= e.movementY * this.viewSensitivity
+            this.viewPitch = clamp(this.viewPitch, -this.viewPitchClamp, this.viewPitchClamp)
         }
+        document.addEventListener('mousemove', this._onBoardMouseMove)
+
+        if(this.game.view) this.game.view.lockCamera = true
     }
 
-    /**
-     * 把 camera 恢复到原来的 parent
-     * @param {THREE.Object3D} camera
-     */
     detachCamera(camera)
     {
+        this._boardedCamera = null
+        this._cameraTarget = null
+
+        // 卸载鼠标监听
+        if(this._onBoardMouseMove)
+        {
+            document.removeEventListener('mousemove', this._onBoardMouseMove)
+            this._onBoardMouseMove = null
+        }
+        // 视角归零
+        this.viewYaw = 0
+        this.viewPitch = 0
+
         if(this._savedCamParent)
         {
             this._savedCamParent.add(camera)
@@ -282,9 +523,6 @@ export class Train
         this._savedCamPos = null
         this._savedCamQuat = null
 
-        if(this.game.view)
-        {
-            this.game.view.lockCamera = false
-        }
+        if(this.game.view) this.game.view.lockCamera = false
     }
 }

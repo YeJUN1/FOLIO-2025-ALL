@@ -43,6 +43,13 @@ export class Respawns
             position: new THREE.Vector3(-51, 4, 21),
             rotation: 0,
         })
+
+        // 丁浩宸 PlotFence 木栅栏地块中心出生点（x∈[-6.5,46.5], z∈[-73.3,-40.3]）
+        this.items.set('fence', {
+            name: 'fence',
+            position: new THREE.Vector3(20, 4, -57),
+            rotation: 0,
+        })
     }
 
     getByName(name)

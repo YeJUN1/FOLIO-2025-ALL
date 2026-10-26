@@ -264,16 +264,17 @@ export class Game
             this.character.active = false
             this.character.object3D.visible = false
 
-            // Camera 挂到火车座舱
-            this.train.attachCamera(this.view.camera)
+            // Camera 挂到火车第一节车厢（乘客视角）
+            this.train.attachCamera(this.view.camera, 'passenger')
 
-            // 火车启动
+            // 火车开始绕岛
             this.train.setRunning(true)
 
             // 隐藏站台 InteractivePoint
             this.trainStationPoint.hide()
 
-            // 注册全局 E 键监听（绕过 InteractivePoints 距离检查），按一下就下车
+            // === 注册下车监听（三重保险）===
+            // 1) 游戏 Inputs 的 interact 事件（pointerLock 开启时生效）
             this.trainBoardedInteractHandler = () =>
             {
                 if(this.trainBoarded)
@@ -282,9 +283,60 @@ export class Game
             this.inputs.events.on('interact', this.trainBoardedInteractHandler)
             this.inputs.interactiveButtons.events.on('interact', this.trainBoardedInteractHandler)
 
+            // 2) 原生 keydown（不依赖 pointerLock，任何状态下按 E 或 Escape 都能下）
+            this.trainBoardedKeydownHandler = (e) =>
+            {
+                if(!this.trainBoarded) return
+                if(e.code === 'KeyE' || e.code === 'Escape' || e.code === 'Enter')
+                {
+                    e.preventDefault()
+                    this.trainBoardToggle()
+                }
+            }
+            document.addEventListener('keydown', this.trainBoardedKeydownHandler)
+
+            // 3) 屏幕上的 HTML 下车按钮（点一下就下）
+            this.trainBoardedButton = document.createElement('button')
+            this.trainBoardedButton.textContent = '🚆 下车 (E)'
+            this.trainBoardedButton.style.cssText = [
+                'position: fixed',
+                'top: 50%',
+                'right: 30px',
+                'transform: translateY(-50%)',
+                'z-index: 99999',
+                'padding: 14px 22px',
+                'background: rgba(200, 16, 46, 0.9)',
+                'color: #fff',
+                'border: 2px solid rgba(255, 255, 255, 0.4)',
+                'border-radius: 10px',
+                'font-family: inherit',
+                'font-size: 16px',
+                'font-weight: 600',
+                'cursor: pointer',
+                'box-shadow: 0 4px 20px rgba(0,0,0,0.4)',
+                'backdrop-filter: blur(4px)',
+                'user-select: none',
+                'transition: transform 0.12s, background 0.12s',
+            ].join('; ')
+            this.trainBoardedButton.addEventListener('mouseenter', () =>
+            {
+                this.trainBoardedButton.style.background = 'rgba(230, 30, 60, 1)'
+                this.trainBoardedButton.style.transform = 'translateY(-50%) scale(1.05)'
+            })
+            this.trainBoardedButton.addEventListener('mouseleave', () =>
+            {
+                this.trainBoardedButton.style.background = 'rgba(200, 16, 46, 0.9)'
+                this.trainBoardedButton.style.transform = 'translateY(-50%) scale(1)'
+            })
+            this.trainBoardedButton.addEventListener('click', () =>
+            {
+                if(this.trainBoarded) this.trainBoardToggle()
+            })
+            document.body.appendChild(this.trainBoardedButton)
+
             this.notifications.show(/* html */`
                 <div class="top"><div class="title">🚆 上车！</div></div>
-                <div class="bottom"><div class="description">火车开始绕岛一圈 · 按 E 下车</div></div>
+                <div class="bottom"><div class="description">火车绕岛一圈 · 鼠标拖看风景 · 按 E 或右侧按钮下车</div></div>
             `, '', 3)
         }
         else
@@ -299,25 +351,18 @@ export class Game
                 this.inputs.interactiveButtons.events.off('interact', this.trainBoardedInteractHandler)
                 this.trainBoardedInteractHandler = null
             }
+            if(this.trainBoardedKeydownHandler)
+            {
+                document.removeEventListener('keydown', this.trainBoardedKeydownHandler)
+                this.trainBoardedKeydownHandler = null
+            }
+            if(this.trainBoardedButton && this.trainBoardedButton.parentNode)
+            {
+                this.trainBoardedButton.parentNode.removeChild(this.trainBoardedButton)
+                this.trainBoardedButton = null
+            }
 
-            // Camera 恢复
-            this.train.detachCamera(this.view.camera)
-
-            // 同步 focusPoint 和 defaultCamera 到下车位置，避免跳跃
-            this.view.focusPoint.isTracking = false
-            this.view.focusPoint.position.copy(exitPos)
-            this.view.focusPoint.smoothedPosition.copy(exitPos)
-            this.view.defaultCamera.position.copy(exitPos).add(this.view.spherical.offset)
-            this.view.defaultCamera.lookAt(exitPos)
-
-            // 火车停车
-            this.train.setRunning(false)
-
-            // 恢复物理车辆控制
-            this.physicalVehicle.activate()
-            this.player.state = Player.STATE_DEFAULT
-
-            // 恢复车辆位置到当前位置（火车停处）的轨道边
+            // 先算好下车点（火车当前位置轨道旁）
             const exitPose = this.train.trackPath.getPoseAt(this.train.t)
             const exitPos = exitPose.position.clone()
             exitPos.y += 0.5
@@ -326,7 +371,25 @@ export class Game
                 const side = new THREE.Vector3().crossVectors(exitPose.tangent, up).normalize()
                 exitPos.add(side.multiplyScalar(3))
             }
-            this.physicalVehicle.moveTo(exitPos, Math.atan2(exitPose.tangent.x, exitPose.tangent.z))
+            const exitYaw = Math.atan2(exitPose.tangent.x, exitPose.tangent.z)
+
+            // Camera 恢复
+            this.train.detachCamera(this.view.camera)
+
+            // 同步 focusPoint 到下车位置，避免跳跃
+            this.view.focusPoint.isTracking = false
+            this.view.focusPoint.position.copy(exitPos)
+            this.view.focusPoint.smoothedPosition.copy(exitPos)
+            this.view.defaultCamera.position.copy(exitPos).add(new THREE.Vector3(0, 3, -5))
+            this.view.defaultCamera.lookAt(exitPos)
+
+            // 恢复物理车辆控制，把车挪到下车点
+            this.physicalVehicle.activate()
+            this.player.state = Player.STATE_DEFAULT
+            this.physicalVehicle.moveTo(exitPos, exitYaw)
+
+            // 火车暂停（下一个玩家上车直接从当前位置继续）
+            this.train.setRunning(false)
 
             // 恢复站台交互
             this.trainStationPoint.state = InteractivePoints.STATE_CONCEALED
