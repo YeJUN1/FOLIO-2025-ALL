@@ -8,7 +8,6 @@ export class TrackPath
         this.game = Game.getInstance()
 
         // === 轨道控制点（绕小岛一圈，顺时针，避开已有地盘）===
-        // 粗略围成一圈，CatmullRomCurve3 会平滑插值
         // PlotFence 木栅栏: x∈[-6.5, 46.5], z∈[-73.3, -40.3]（右下偏）
         // PandoraFence 竹子围栏: x∈[16, 86], z∈[-37, 27.4]（中下，横贯）
         // TerritoryFence 石围栏: 左下不规则
@@ -39,6 +38,9 @@ export class TrackPath
             // 连接回起点
         ]
 
+        // === 对所有控制点射线贴地 ===
+        this.setGroundHeight(rawPoints)
+
         // 构建闭合 CatmullRom 曲线
         this.curve = new THREE.CatmullRomCurve3(rawPoints, true, 'catmullrom', 0.5)
 
@@ -47,6 +49,31 @@ export class TrackPath
         this.totalLength = this.curve.getLength()
 
         this.setVisual()
+    }
+
+    setGroundHeight(points)
+    {
+        const terrainMesh = this.game.resources.terrainModel.scene.children[0]
+        const raycaster = new THREE.Raycaster()
+        raycaster.far = 200
+
+        for(const p of points)
+        {
+            // 从高空往下射
+            const origin = new THREE.Vector3(p.x, 100, p.z)
+            raycaster.set(origin, new THREE.Vector3(0, -1, 0))
+
+            const hits = raycaster.intersectObject(terrainMesh, false)
+            if(hits.length > 0)
+            {
+                p.y = hits[0].point.y
+            }
+            else
+            {
+                // 没击中地形（可能是水域），给个保底高度
+                p.y = 2
+            }
+        }
     }
 
     setVisual()
