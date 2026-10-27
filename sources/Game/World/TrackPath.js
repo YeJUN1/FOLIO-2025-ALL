@@ -238,4 +238,54 @@ export class TrackPath
         if(newT < 0) newT += 1
         return newT
     }
+
+    /**
+     * 在给定矩形 [minX, maxX] × [minZ, maxZ] 范围内，找到轨道经过的所有连通 t 区间
+     * 返回 [{ t0, t1 }] —— 注意 t0/t1 可能跨 0/1 边界，调用方需自行处理
+     */
+    findTIntervalsInRect(minX, maxX, minZ, maxZ, gapPad = 0)
+    {
+        const N = 2000  // 高密度采样
+        const inside = new Array(N)
+        for(let i = 0; i < N; i++)
+        {
+            const t = i / N
+            const p = this.curve.getPointAt(t)
+            inside[i] = p.x >= minX - gapPad && p.x <= maxX + gapPad &&
+                        p.z >= minZ - gapPad && p.z <= maxZ + gapPad
+        }
+        // 提取连续段
+        const intervals = []
+        let start = -1
+        for(let i = 0; i < N; i++)
+        {
+            if(inside[i] && start === -1) start = i
+            else if(!inside[i] && start !== -1)
+            {
+                intervals.push({ t0: start / N, t1: i / N })
+                start = -1
+            }
+        }
+        if(start !== -1) intervals.push({ t0: start / N, t1: 1 })
+        return intervals
+    }
+
+    /**
+     * 判定某点 (x, z) 是否离轨道在 gapRadius 以内
+     * 用于围栏跳过 —— 点在轨道旁就跳过那段栅栏
+     */
+    isNearTrack(x, z, gapRadius = 2.5)
+    {
+        // 粗粒度采样找最近点
+        const N = 300
+        let bestDist = Infinity
+        for(let i = 0; i < N; i++)
+        {
+            const p = this.curve.getPointAt(i / N)
+            const dx = p.x - x, dz = p.z - z
+            const d = dx * dx + dz * dz
+            if(d < bestDist) bestDist = d
+        }
+        return Math.sqrt(bestDist) < gapRadius
+    }
 }

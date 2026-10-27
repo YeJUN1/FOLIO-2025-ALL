@@ -80,6 +80,12 @@ export class TerritoryFence
         {
             const x = _start.x + stepX * (i + 0.5)
             const z = _start.z + stepZ * (i + 0.5)
+
+            // 跳过轨道旁的段（供火车过）
+            const trackPath = this.game.train?.trackPath
+            if(trackPath && trackPath.isNearTrack(x, z, 4))
+                continue
+
             let y = this.getGroundElevation(x, z)
 
             // 没有地面（地图边缘）或地面低于水面（在海里）：栏板改坐在 y = 0，

@@ -25,8 +25,16 @@ export class Fences
 
         // Objects
         this.objects = []
+        const trackPath = this.game.train?.trackPath
+        const skipRadius = 3.5
+        const filteredReferences = []
         for(const reference of references)
         {
+            // 跳过轨道旁的围栏件（供火车过）
+            if(trackPath && trackPath.isNearTrack(reference.position.x, reference.position.z, skipRadius))
+                continue
+
+            filteredReferences.push(reference)
             this.objects.push(this.game.objects.add(
                 {
                     model: reference,
@@ -51,8 +59,8 @@ export class Fences
             ))
         }
 
-        // Instanced group
-        this.instancedGroup = new InstancedGroup(references, base)
+        // Instanced group（只包含没被轨道 gap 跳过的 reference）
+        this.instancedGroup = new InstancedGroup(filteredReferences, base)
 
         // Tick update
         this.game.ticker.events.on('tick', () =>

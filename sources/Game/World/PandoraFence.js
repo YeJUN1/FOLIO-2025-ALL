@@ -112,7 +112,7 @@ export class PandoraFence
         this.buildRun({ x: min.x, z: rockGapZ }, { x: min.x, z: min.z })
     }
 
-    buildRun(from, to)
+    buildRun(from, to, trackGapRadius = 3.5)
     {
         const dx = to.x - from.x
         const dz = to.z - from.z
@@ -132,11 +132,23 @@ export class PandoraFence
         const dummy = new THREE.Object3D()
         const matrix = new THREE.Matrix4()
 
+        // 轨道穿过时留 gap —— 查 Game.train.trackPath
+        const trackPath = this.game.train?.trackPath
+        const skipMatrix = new THREE.Matrix4().makeScale(0, 0, 0)
+
         for(let i = 0; i < count; i++)
         {
             const ratio = (i + 0.5) / count
             const x = from.x + dx * ratio
             const z = from.z + dz * ratio
+
+            // 跳过轨道旁的段（供火车过）
+            if(trackPath && trackPath.isNearTrack(x, z, trackGapRadius))
+            {
+                instance.setMatrixAt(i, skipMatrix)
+                continue
+            }
+
             const groundY = this.getGroundHeight(x, z)
 
             dummy.position.set(x, groundY - this.bottomOffset - this.sink, z)

@@ -74,8 +74,18 @@ export class Territory
             {
                 const points = this.getPerimeterPoints(territory.rect, step)
 
+                // 过滤掉轨道旁的点（供火车过）
+                const trackPath = this.game.train?.trackPath
+                if(trackPath)
+                {
+                    for(const point of points)
+                        if(trackPath.isNearTrack(point.x, point.z, 4))
+                            point.__skip = true
+                }
+
                 for(const point of points)
-                    this.addSegment(resource.scene, point, scale, description)
+                    if(!point.__skip)
+                        this.addSegment(resource.scene, point, scale, description)
             }
 
             if((territory.label ?? true) && territory.name && this.game.map)
