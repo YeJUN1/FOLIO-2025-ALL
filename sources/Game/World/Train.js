@@ -416,44 +416,48 @@ export class Train
     }
 
     /**
-     * 第三人称跟车 —— 手动设位置避免穿箱；朝向叠加玩家鼠标偏移
+     * 第三人称跟车 —— 平滑 camera 位置 + 稳定朝向叠加玩家 yaw/pitch
      */
     updateCameraFollow()
     {
         const cam = this._boardedCamera
         if(!cam) return
 
-        const { position, tangent } = this.trackPath.getPoseAt(this.t)
         const trainPos = this.group.position.clone()
 
-        // tangent.y 取 0 避免坡度影响 camera offset
+        // === 平滑 camera 位置 ===
+        // 目标位置：火车后上方 20m + 6m（用 tangent 算，但切线 y 归零）
+        const { tangent } = this.trackPath.getPoseAt(this.t)
         const t = tangent.clone(); t.y = 0; t.normalize()
 
-        // camera 位置：火车后上方 22m + 7m
-        const backOffset = t.clone().multiplyScalar(-22)
-        const upOffset = new THREE.Vector3(0, 7, 0)
-        const desiredPos = trainPos.clone().add(backOffset).add(upOffset)
+        const desiredPos = trainPos.clone()
+            .add(t.clone().multiplyScalar(-20))
+            .add(new THREE.Vector3(0, 6, 0))
 
-        // 平滑过渡
-        const lerpK = Math.min(1, 8 * this.game.ticker.deltaScaled)
+        // 二阶平滑（类似 spring-mass，但简化成指数）：
+        // lerpK = 1 - exp(-k * delta)，k=4 → 约 0.06s 到达 63%
+        const lerpK = 1 - Math.exp(-4 * this.game.ticker.deltaScaled)
         cam.position.lerp(desiredPos, lerpK)
 
-        // === 朝向：基础 lookAt 火车中心 + 玩家 yaw/pitch 偏移 ===
-        const lookAtBase = trainPos.clone().add(new THREE.Vector3(0, 2.5, 0))
-        const baseDir = lookAtBase.sub(cam.position).normalize()
+        // === 朝向稳定 ===
+        // 不用当前 cam.position 算 lookAt 方向（它还在平滑，会抖）
+        // 用 desiredPos + 理想目标来算方向，避免 position ↔ direction 互相打架
+        const stableEye = desiredPos
+        const stableLookAt = trainPos.clone().add(new THREE.Vector3(0, 2.5, 0))
+        let dir = stableLookAt.sub(stableEye).normalize()
 
-        // 基础方向旋转玩家的 yaw（Y轴）和 pitch（X轴）
+        // 叠加玩家 yaw（Y 轴）+ pitch（X 轴）
         const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.viewYaw)
         const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.viewPitch)
-        const finalDir = baseDir.applyQuaternion(qYaw).applyQuaternion(qPitch)
+        dir = dir.applyQuaternion(qYaw).applyQuaternion(qPitch)
 
-        const lookTarget = cam.position.clone().add(finalDir)
+        const lookTarget = cam.position.clone().add(dir)
         cam.lookAt(lookTarget)
 
-        // === 视角衰减：松手后慢慢归正前方 ===
+        // === 视角衰减：松手后慢慢归正 ===
         const decayK = 1 - Math.exp(-this.viewDecay * this.game.ticker.deltaScaled * 60)
         this.viewYaw *= (1 - decayK * 0.5)
-        this.viewPitch *= (1 - decayK * 0.8)  // pitch 回正更快
+        this.viewPitch *= (1 - decayK * 0.8)
     }
 
     applyPose()

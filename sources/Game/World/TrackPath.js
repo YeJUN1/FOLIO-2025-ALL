@@ -17,41 +17,26 @@ export class TrackPath
             { minX: -85,  maxX: -30,  minZ: -20,   maxZ: 25,    margin: 3 },  // TerritoryFence（近似）
         ]
 
-        // === 轨道控制点 —— 紧贴岛屿陆地边缘，顺时针绕一圈 ===
-        // 岛屿大致是一个椭圆：x∈[-90, 130], z∈[-100, 95]
-        // 控制点沿边缘摆，避开中间的地盘区
-        const rawPoints = [
-            // 【起点】岛的东南海岸线（PlotFence 以东、PandoraFence 以南）
-            new THREE.Vector3(60, 0, -78),
-            // 右下：PlotFence 以南，贴着陆地
-            new THREE.Vector3(40, 0, -95),
-            new THREE.Vector3(10, 0, -98),
-            new THREE.Vector3(-20, 0, -95),
-            new THREE.Vector3(-45, 0, -88),
-            // 左下：TerritoryFence 以西/以南
-            new THREE.Vector3(-65, 0, -75),
-            new THREE.Vector3(-80, 0, -55),
-            new THREE.Vector3(-88, 0, -30),
-            new THREE.Vector3(-88, 0, 0),
-            new THREE.Vector3(-85, 0, 30),
-            // 左上：TerritoryFence 以北
-            new THREE.Vector3(-75, 0, 55),
-            new THREE.Vector3(-55, 0, 78),
-            new THREE.Vector3(-30, 0, 90),
-            new THREE.Vector3(0, 0, 95),
-            new THREE.Vector3(30, 0, 92),
-            // 右上：PandoraFence 以北
-            new THREE.Vector3(55, 0, 85),
-            new THREE.Vector3(80, 0, 70),
-            new THREE.Vector3(100, 0, 45),
-            new THREE.Vector3(115, 0, 15),
-            new THREE.Vector3(120, 0, -15),
-            new THREE.Vector3(115, 0, -45),
-            new THREE.Vector3(100, 0, -68),
-            // 回到起点
-        ]
+        // === 轨道控制点 —— 严格沿岛屿陆地海岸线走 ===
+        // 岛屿陆地大致椭圆：x ∈ [-90, 120], z ∈ [-95, 92]
+        // 用椭圆参数化：长边 a=105, 短边 b=93, 稍向内收缩确保 100% 在陆地上
+        // 角度从 0°(东) 顺时针绕一圈 → 21 个点
+        const rawPoints = []
+        const a = 95        // 椭圆 x 半径（内缩 10m）
+        const b = 88        // 椭圆 z 半径（内缩 5m）
+        const cx = 12       // 椭圆中心（岛中心偏东 12m）
+        const cz = -3       // 椭圆中心（岛中心偏北 3m）
+        const N = 21
+        for(let i = 0; i < N; i++)
+        {
+            // theta=0 在 x+ 方向，顺时针绕（-z 方向为正角度增长）
+            const theta = (i / N) * Math.PI * 2
+            const x = cx + Math.cos(theta) * a
+            const z = cz + Math.sin(theta) * b * 0.95  // z 稍扁
+            rawPoints.push(new THREE.Vector3(x, 0, z))
+        }
 
-        // === 避开禁区 + 射线贴地 ===
+        // === 避开禁区 + 射线贴地（没射中陆地就向内收缩）===
         this.sanitizePoints(rawPoints)
         this.setGroundHeight(rawPoints)
 
@@ -97,28 +82,45 @@ export class TrackPath
         }
     }
 
+    /**
+     * 射线贴地 —— 没击中地形（水域）就从原位置向椭圆中心逐步收缩，直到射中陆地
+     */
     setGroundHeight(points)
     {
         const terrainMesh = this.game.resources.terrainModel.scene.children[0]
         const raycaster = new THREE.Raycaster()
         raycaster.far = 200
 
+        // 椭圆中心（与控制点相同）
+        const cx = 12, cz = -3
+
         for(const p of points)
         {
-            // 从高空往下射
-            const origin = new THREE.Vector3(p.x, 100, p.z)
-            raycaster.set(origin, new THREE.Vector3(0, -1, 0))
+            // 从原位置开始，最多收缩 8 次，每次向中心推 10%
+            let hit = null
+            let px = p.x, pz = p.z
+            for(let attempt = 0; attempt < 10; attempt++)
+            {
+                const origin = new THREE.Vector3(px, 100, pz)
+                raycaster.set(origin, new THREE.Vector3(0, -1, 0))
 
-            const hits = raycaster.intersectObject(terrainMesh, false)
-            if(hits.length > 0)
-            {
-                p.y = hits[0].point.y
+                const hits = raycaster.intersectObject(terrainMesh, false)
+                if(hits.length > 0 && hits[0].point.y > -1.5)  // 真正的陆地，不是海底
+                {
+                    hit = hits[0].point.y
+                    break
+                }
+
+                // 没射中 → 向椭圆中心收缩
+                const dx = cx - px, dz = cz - pz
+                const len = Math.hypot(dx, dz) || 1
+                px += (dx / len) * 3
+                pz += (dz / len) * 3
             }
-            else
-            {
-                // 没击中地形（可能是水域），保底高一点让它不沉水
-                p.y = 2
-            }
+
+            p.x = px
+            p.z = pz
+            p.y = hit !== null ? hit : 0.5   // 实在没中，保底 0.5m（岛上最低点）
         }
     }
 
