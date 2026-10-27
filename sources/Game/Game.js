@@ -391,9 +391,9 @@ export class Game
             // 火车暂停（下一个玩家上车直接从当前位置继续）
             this.train.setRunning(false)
 
-            // 恢复站台交互
-            this.trainStationPoint.state = InteractivePoints.STATE_CONCEALED
-            this.trainStationPoint.intersect.active = true
+            // 恢复站台交互（必须调 show() —— hide() 把 diamond/label.visible 设为 false 并 gsap 隐藏动画，
+            // 手动改 state 不会触发 show 动画，站台图标会永远消失）
+            this.trainStationPoint.show()
 
             this.notifications.show(/* html */`
                 <div class="top"><div class="title">🚆 下车</div></div>
