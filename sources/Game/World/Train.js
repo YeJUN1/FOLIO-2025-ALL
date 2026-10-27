@@ -29,6 +29,16 @@ export class Train
         this.viewDecay = 0.3            // 松手后角度回正速度
 
         this.trackPath = new TrackPath()
+
+        // 烟系统
+        this._smokes = []
+        this._smokeSpawnAcc = 0
+        this._smokeMax = 60
+        this._smokeCanvasTex = this._makeSmokeTexture()
+
+        // 过弯倾斜：记录上一帧切线方向
+        this._prevAngleY = 0
+
         this.setVisual()
 
         this.game.ticker.events.on('tick', () => { this.update() }, 8)
@@ -158,11 +168,17 @@ export class Train
         headlight.position.set(3.3, 1.8, 0)
         loco.add(headlight)
 
-        // 车灯光源（真正照亮前方）
-        const headLight = new THREE.PointLight(0xfff0c0, 1.2, 20, 1.5)
+        // 车灯光源（真正照亮前方）—— 加强到 2.5
+        const headLight = new THREE.PointLight(0xfff0c0, 2.5, 30, 1.2)
         headLight.position.set(3.5, 1.8, 0)
         loco.add(headLight)
         this.headLight = headLight
+
+        // 驾驶室内部暖色灯（驾驶舱里透出的温暖光）
+        const cabinLight = new THREE.PointLight(0xffb060, 0.6, 8, 2)
+        cabinLight.position.set(-2.4, 2.7, 0)
+        loco.add(cabinLight)
+        this.cabinLight = cabinLight
 
         // 挂钩（前后）
         const couplerFront = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), grayMat)
@@ -398,13 +414,27 @@ export class Train
         {
             const distance = this.speed * this.game.ticker.deltaScaled * this.direction
             this.t = this.trackPath.advance(this.t, distance)
-            this.applyPose()
         }
+
+        // === 无论是否推进都更新 pose（过弯倾斜需要每帧记录 angleY）===
+        this.applyPose()
 
         // === 轮子旋转 ===
         const wheelSpin = (this.speed / 0.9) * this.game.ticker.deltaScaled * this.direction
         for(const w of (this._wheels || []))
             w.rotation.x += wheelSpin
+
+        // === 车厢摆动（被动悬挂模拟）===
+        const time = performance.now() * 0.001
+        for(let i = 0; i < (this.passengerCars || []).length; i++)
+        {
+            const car = this.passengerCars[i]
+            car.rotation.z = Math.sin(time * 1.4 + i * 1.2) * 0.012   // 左右 ~0.7°
+            car.rotation.x = Math.sin(time * 1.8 + i * 0.8) * 0.006   // 上下 ~0.35°
+        }
+
+        // === 烟系统 ===
+        this.updateSmoke(this.game.ticker.deltaScaled)
 
         // === 乘客 camera 跟随（第三人称，从火车后上方看）===
         if(this._boardedCamera)
@@ -469,7 +499,23 @@ export class Train
         // tangent.y 取 0 避免上下坡导致火车翻
         const t = tangent.clone(); t.y = 0; t.normalize()
         const angleY = Math.atan2(t.x, t.z)
-        this.group.rotation.set(0, angleY - Math.PI * 0.5, 0)
+        this.group.rotation.y = angleY - Math.PI * 0.5
+
+        // === 过弯倾斜（离心力模拟）===
+        // 计算本帧切线方向相对上一帧的变化（deltaAngle）
+        let dAngle = angleY - (this._prevAngleY ?? angleY)
+        while(dAngle >  Math.PI) dAngle -= Math.PI * 2
+        while(dAngle < -Math.PI) dAngle += Math.PI * 2
+        this._prevAngleY = angleY
+
+        // 倾斜方向：向弯道内侧倾斜（跟真实火车一样）
+        // dAngle > 0 表示向右转 → 车身向左倾（rotation.z 负）
+        // dAngle < 0 表示向左转 → 车身向右倾（rotation.z 正）
+        const targetRoll = -dAngle * 3.5   // 系数：转得快倾斜多
+        const clampedRoll = clamp(targetRoll, -0.18, 0.18)  // ±10° 封顶
+        // 平滑过渡，避免突然抖动
+        const rollLerpK = Math.min(1, 6 * this.game.ticker.deltaScaled)
+        this.group.rotation.z = (this.group.rotation.z || 0) + (clampedRoll - (this.group.rotation.z || 0)) * rollLerpK
     }
 
     // ==================== Camera attach / detach ====================
@@ -536,5 +582,119 @@ export class Train
         this._savedCamQuat = null
 
         if(this.game.view) this.game.view.lockCamera = false
+    }
+
+    // ==================== 烟系统 ====================
+
+    /**
+     * 用 Canvas 画一个径向渐变的烟纹理（中心白 → 边缘透明灰）
+     */
+    _makeSmokeTexture()
+    {
+        const size = 128
+        const canvas = document.createElement('canvas')
+        canvas.width = size; canvas.height = size
+        const ctx = canvas.getContext('2d')
+
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+        grad.addColorStop(0.0, 'rgba(230, 230, 230, 0.9)')
+        grad.addColorStop(0.3, 'rgba(200, 200, 200, 0.6)')
+        grad.addColorStop(0.7, 'rgba(150, 150, 150, 0.25)')
+        grad.addColorStop(1.0, 'rgba(100, 100, 100, 0.0)')
+
+        ctx.fillStyle = grad
+        ctx.fillRect(0, 0, size, size)
+
+        const tex = new THREE.CanvasTexture(canvas)
+        tex.colorSpace = THREE.SRGBColorSpace
+        return tex
+    }
+
+    /**
+     * 每帧更新烟粒：spawn + 飘升 + scale 变大 + alpha 降低 + 到期移除
+     */
+    updateSmoke(dt)
+    {
+        // 预计算本帧烟囱在世界坐标下的位置（烟的起点）
+        const chimneyWorld = new THREE.Vector3(-1.2, 3.9, 0)
+        chimneyWorld.applyMatrix4(this.loco.matrixWorld)
+
+        // 1) Spawn —— 速度越快 spawn 越快；stationary 时几乎不冒
+        this._smokeSpawnAcc += dt
+        const spawnInterval = Math.max(0.06, 0.35 - this.speed * 0.018)
+        while(this._smokeSpawnAcc >= spawnInterval && this._smokes.length < this._smokeMax)
+        {
+            this._smokeSpawnAcc -= spawnInterval
+            this._spawnSmoke(chimneyWorld)
+        }
+
+        // 2) 更新现有烟粒
+        const toRemove = []
+        for(let i = 0; i < this._smokes.length; i++)
+        {
+            const s = this._smokes[i]
+            s.life += dt
+            const t = s.life / s.maxLife   // 0 → 1
+
+            // 位置：从"当前烟囱位置 + 初始散布"开始，向上飘 + 水平飘散
+            s.mesh.position.copy(chimneyWorld)
+                .add(s.seedOffset)
+            s.mesh.position.y += s.life * 2.5                // 上升速度 ~2.5 m/s
+            s.mesh.position.x -= 0.3 * s.life                // 微微飘开（恒定方向足够，火车椭圆路线会自然交错）
+
+            // scale 逐渐变大（烟扩散）
+            const scale = 0.3 + t * 3.5
+            s.mesh.scale.setScalar(scale)
+
+            // alpha 从 0.85 → 0
+            s.material.opacity = Math.max(0, (1 - t) * 0.75)
+
+            // 轻微随机旋转
+            s.mesh.rotation.z += dt * 0.8 + s.seed
+
+            if(t >= 1) toRemove.push(i)
+        }
+
+        // 3) 清理到期的
+        for(let i = toRemove.length - 1; i >= 0; i--)
+        {
+            const idx = toRemove[i]
+            const s = this._smokes.splice(idx, 1)[0]
+            this.game.scene.remove(s.mesh)
+            s.material.dispose()
+        }
+    }
+
+    _spawnSmoke(chimneyWorld)
+    {
+        const mat = new THREE.SpriteMaterial({
+            map: this._smokeCanvasTex,
+            transparent: true,
+            opacity: 0.8,
+            depthWrite: false,
+            blending: THREE.NormalBlending,
+        })
+        const sprite = new THREE.Sprite(mat)
+
+        // 初始随机散布（烟从烟囱周边一点点冒出来，不是一个点）
+        const seedOffset = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.4,
+            0,
+            (Math.random() - 0.5) * 0.4
+        )
+
+        sprite.position.copy(chimneyWorld).add(seedOffset)
+        sprite.scale.setScalar(0.35)
+
+        this.game.scene.add(sprite)
+
+        this._smokes.push({
+            mesh: sprite,
+            material: mat,
+            seedOffset,
+            life: 0,
+            maxLife: 2.2 + Math.random() * 1.5,   // 2.2~3.7 秒
+            seed: Math.random() * Math.PI * 2,
+        })
     }
 }

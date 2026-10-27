@@ -249,6 +249,30 @@ export class Game
                 this.trainBoardToggle()
             }
         )
+
+        // === 站台木平台（沿轨道方向 6m × 宽 2.5m × 高 0.2m）===
+        {
+            const platMat = new THREE.MeshStandardMaterial({
+                color: 0x8b5a2b, metalness: 0.15, roughness: 0.85
+            })
+            const platGeo = new THREE.BoxGeometry(6, 0.2, 2.5)
+            const platform = new THREE.Mesh(platGeo, platMat)
+            // y 放到地面以上 0.1m
+            platform.position.copy(stationPosition)
+            platform.y = stationPose.position.y + 0.1
+            // 朝向轨道（tangent 方向）
+            const t = stationPose.tangent.clone(); t.y = 0; t.normalize()
+            platform.rotation.y = Math.atan2(t.x, t.z)
+            platform.castShadow = false; platform.receiveShadow = true
+            this.scene.add(platform)
+
+            // 平台边缘的白色安全线
+            const lineMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, emissive: 0x444444, emissiveIntensity: 0.3 })
+            const lineGeo = new THREE.BoxGeometry(6, 0.02, 0.08)
+            const lineFront = new THREE.Mesh(lineGeo, lineMat)
+            lineFront.position.set(0, 0.11, 1.17)
+            platform.add(lineFront)
+        }
     }
 
     trainBoardToggle()
