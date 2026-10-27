@@ -23,12 +23,10 @@ export class Train
         this.stopDuration = 4          // 停靠秒数
         this.stopTimer = 0
 
-        // === 乘客视角偏移（鼠标可左右/上下看风景）===
-        this.viewYaw = 0               // 水平旋转（弧度）
-        this.viewPitch = 0             // 垂直旋转（弧度，正=抬头）
+        // === 乘客视角（鼠标左右/上下看风景，叠加到跟车基础角度上）===
         this.viewSensitivity = 0.0025
-        this.viewPitchClamp = 0.8      // ±0.8 rad ≈ ±46° 上下范围
-        this.viewDecay = 0.3           // 每帧自动归零的比例（松手后视角慢慢回到正前方）
+        this.viewPitchClamp = 0.6       // pitch ±0.6 rad ≈ ±34° 上下范围
+        this.viewDecay = 0.3            // 松手后角度回正速度
 
         this.trackPath = new TrackPath()
         this.setVisual()
@@ -416,48 +414,49 @@ export class Train
     }
 
     /**
-     * 第三人称跟车 —— 平滑 camera 位置 + 稳定朝向叠加玩家 yaw/pitch
+     * 第三人称跟车 —— 完全复用 View.js 的 spherical + smoothedFocusPoint 套路
+     * 跟开车手感一模一样：focusPoint 平滑追火车 forward，spherical 算相机偏移，
+     * 用户鼠标改 thetaOffset/pitchOffset 叠加到基础角度上
      */
     updateCameraFollow()
     {
         const cam = this._boardedCamera
         if(!cam) return
 
-        const trainPos = this.group.position.clone()
+        const dt = this.game.ticker.deltaScaled
 
-        // === 平滑 camera 位置 ===
-        // 目标位置：火车后上方 20m + 6m（用 tangent 算，但切线 y 归零）
+        // === 1. 更新 focusPoint（火车当前位置）===
+        this._focusPoint.copy(this.group.position)
+        this._focusPointSmoothed.lerp(this._focusPoint, Math.min(1, this._focusLerpSpeed * dt))
+
+        // === 2. 更新 baseTheta（火车 forward → spherical theta）===
         const { tangent } = this.trackPath.getPoseAt(this.t)
-        const t = tangent.clone(); t.y = 0; t.normalize()
+        const fwdX = tangent.x
+        const fwdZ = tangent.z
+        // THREE.Vector3.setFromSphericalCoords 的 theta 就是 atan2(x, z)
+        const targetTheta = Math.atan2(fwdX, fwdZ)
 
-        const desiredPos = trainPos.clone()
-            .add(t.clone().multiplyScalar(-20))
-            .add(new THREE.Vector3(0, 6, 0))
+        // 角度 lerp（处理 ±PI 跳变）
+        let dTheta = targetTheta - this._baseThetaSmoothed
+        while(dTheta > Math.PI)  dTheta -= Math.PI * 2
+        while(dTheta < -Math.PI) dTheta += Math.PI * 2
+        this._baseThetaSmoothed += dTheta * Math.min(1, this._thetaLerpSpeed * dt)
 
-        // 二阶平滑（类似 spring-mass，但简化成指数）：
-        // lerpK = 1 - exp(-k * delta)，k=4 → 约 0.06s 到达 63%
-        const lerpK = 1 - Math.exp(-4 * this.game.ticker.deltaScaled)
-        cam.position.lerp(desiredPos, lerpK)
+        // === 3. 视角衰减（松手后慢慢归正）===
+        const decayK = 1 - Math.exp(-this.viewDecay * dt * 60)
+        this._thetaOffset *= (1 - decayK * 0.5)
+        this._pitchOffset *= (1 - decayK * 0.8)
 
-        // === 朝向稳定 ===
-        // 不用当前 cam.position 算 lookAt 方向（它还在平滑，会抖）
-        // 用 desiredPos + 理想目标来算方向，避免 position ↔ direction 互相打架
-        const stableEye = desiredPos
-        const stableLookAt = trainPos.clone().add(new THREE.Vector3(0, 2.5, 0))
-        let dir = stableLookAt.sub(stableEye).normalize()
+        // === 4. spherical 算相机偏移（跟 View.js 完全一样）===
+        const theta = this._baseThetaSmoothed + this._thetaOffset
+        const phi   = this._sphericalPhi + this._pitchOffset
 
-        // 叠加玩家 yaw（Y 轴）+ pitch（X 轴）
-        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.viewYaw)
-        const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.viewPitch)
-        dir = dir.applyQuaternion(qYaw).applyQuaternion(qPitch)
+        const offset = new THREE.Vector3()
+        offset.setFromSphericalCoords(this._sphericalRadius, phi, theta)
 
-        const lookTarget = cam.position.clone().add(dir)
-        cam.lookAt(lookTarget)
-
-        // === 视角衰减：松手后慢慢归正 ===
-        const decayK = 1 - Math.exp(-this.viewDecay * this.game.ticker.deltaScaled * 60)
-        this.viewYaw *= (1 - decayK * 0.5)
-        this.viewPitch *= (1 - decayK * 0.8)
+        // === 5. 应用到 camera ===
+        cam.position.copy(this._focusPointSmoothed).add(offset)
+        cam.lookAt(this._focusPointSmoothed)
     }
 
     applyPose()
@@ -483,19 +482,32 @@ export class Train
         this._savedCamQuat = camera.quaternion.clone()
 
         this._boardedCamera = camera
-        this._cameraTarget = new THREE.Vector3()
 
-        // 立即把 camera 放到跟车起始位置
+        // === 复用 View.js 的 spherical + smoothedFocusPoint 套路 ===
+        // 跟开车完全一样的手感：focusPoint 平滑追火车，spherical 算相机偏移
+        // 用户鼠标改 thetaOffset/pitchOffset，叠加到 baseTheta 上
+        this._focusPoint = this.group.position.clone()
+        this._focusPointSmoothed = this.group.position.clone()
+        this._baseTheta = 0                  // 火车 forward 方向对应的 theta
+        this._baseThetaSmoothed = 0
+        this._thetaOffset = 0                // 用户左右看风景
+        this._pitchOffset = 0                // 用户上下看风景
+
+        // 第三人称参数（跟开车差不多）
+        this._sphericalRadius = 22
+        this._sphericalPhi = Math.PI * 0.32  // 俯角 ~58°（俯视角度）
+        this._focusLerpSpeed = 10            // focusPoint 平滑速度（跟 View 的 lerp 一样）
+        this._thetaLerpSpeed = 6             // baseTheta 追 forward 的平滑速度
+
+        // 立即把 camera 放到起始位置
         this.updateCameraFollow()
 
         // === 安装鼠标监听：让玩家在火车上自由看风景 ===
-        // 注意：不解锁 pointerLock —— 继续让游戏的键盘/输入系统保持工作；
-        // mousemove 的 movementX/movementY 在 pointerLock 下依然能正常给 document 事件
         this._onBoardMouseMove = (e) =>
         {
-            this.viewYaw -= e.movementX * this.viewSensitivity
-            this.viewPitch -= e.movementY * this.viewSensitivity
-            this.viewPitch = clamp(this.viewPitch, -this.viewPitchClamp, this.viewPitchClamp)
+            this._thetaOffset -= e.movementX * this.viewSensitivity
+            this._pitchOffset -= e.movementY * this.viewSensitivity
+            this._pitchOffset = clamp(this._pitchOffset, -this.viewPitchClamp, this.viewPitchClamp)
         }
         document.addEventListener('mousemove', this._onBoardMouseMove)
 
@@ -505,7 +517,6 @@ export class Train
     detachCamera(camera)
     {
         this._boardedCamera = null
-        this._cameraTarget = null
 
         // 卸载鼠标监听
         if(this._onBoardMouseMove)
@@ -513,9 +524,6 @@ export class Train
             document.removeEventListener('mousemove', this._onBoardMouseMove)
             this._onBoardMouseMove = null
         }
-        // 视角归零
-        this.viewYaw = 0
-        this.viewPitch = 0
 
         if(this._savedCamParent)
         {
