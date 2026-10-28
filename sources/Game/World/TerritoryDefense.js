@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import gsap from 'gsap'
 import { Game } from '../Game.js'
+import { Account } from '../Account.js'
 
 /**
  * 领地防御：闯进「我的地盘」→ 约 3 秒后导弹从正上方垂直落下 → 炸弹效果炸飞 → 送回出生点
@@ -9,7 +10,7 @@ import { Game } from '../Game.js'
  * - 进入即开始倒计时，倒计时中离开 → 取消，导弹与警告环消失
  * - 倒计时结束 → 在车辆当前位置引爆，复用爆炸箱的 fireballs（火焰球 + 冲击波，会把车炸飞）
  * - 引爆后延迟片刻把车传送回默认出生点；出生点就在地盘内，于是自动开始下一轮，循环被炸
- * - 名字里含连续的 william（不分大小写）不攻击：在盘内也一直免疫
+ * - 登录账号名（用户名或昵称）里含连续的 william（不分大小写）不攻击：在盘内也一直免疫
  *
  * 参数见 static/territory/territory.json 的 defense 字段
  */
@@ -119,12 +120,17 @@ export class TerritoryDefense
 
     isProtected()
     {
-        // 登录系统已经删了，没有账号名可比；改成从地址栏取名字：?user=william_x
-        const username = new URLSearchParams(window.location.search).get('user') || ''
+        // 登录系统回来后，豁免只看「真正登录进来的账号名」——不再从地址栏 ?user= 取，
+        // 否则谁都能敲个 ?user=william 蹭免死，白名单形同虚设
+        const user = Account.getInstance()?.user
 
-        // 必须是连续的 william（w-i-l-l-i-a-m 这个顺序），不分大小写；
-        // 拆开写成 w-i-l-l-i-a-m 不算
-        return username.toLowerCase().includes('william')
+        if(!user)
+            return false
+
+        // 用户名或昵称里含连续的 william（不分大小写）即免疫；拆开写 w-i-l-l-i-a-m 不算
+        const names = [ user.username, user.nickname ]
+
+        return names.some((name) => typeof name === 'string' && name.toLowerCase().includes('william'))
     }
 
     update()

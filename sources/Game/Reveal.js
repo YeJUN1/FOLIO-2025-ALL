@@ -43,6 +43,27 @@ export class Reveal
         this.game.ticker.events.on('tick', this.update, 10)
     }
 
+    /**
+     * 出生点被 territory 的 applySpawn 异步挪走后，把揭示圈（着色器环心）与点击判定球一起搬到新中心。
+     * Reveal 在 Game.js 里比 World 还早建，构造时 position/position2Uniform 都锁定了老 landing，
+     * 不同步就会看到「环在老处、字在新处」。position2Uniform 是 TSL uniform，改 .value 即时生效。
+     */
+    recenter(_position)
+    {
+        this.position.x = _position.x
+        this.position.z = _position.z
+
+        const value = this.position2Uniform.value
+
+        if(typeof value.set === 'function')
+            value.set(_position.x, _position.z)
+        else
+        {
+            value.x = _position.x
+            value.y = _position.z
+        }
+    }
+
     updateStep(step)
     {
         const speedMultiplier = location.hash.match(/skip/i) ? 4 : 1
