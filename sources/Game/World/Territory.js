@@ -10,7 +10,7 @@ import { Game } from '../Game.js'
  * - 碰撞：每件一个 fixed cuboid（`colliders` 开关），车撞得上、开不出去，只能走门
  * - 空气墙：`wall.height` 在每件栏杆正上方再叠一段无视觉的碰撞盒，拦住「一跳就翻进来」
  * - 水下裙边：`wall.depth` 在每件栏杆正下方再叠一段无视觉碰撞盒，扎进海底以下，拦住「从海里贴着海底穿到围栏下面进来」
- * - 门：`gate` 指定一个世界坐标点 + 宽度，落在那个圈里的件直接不摆（碰撞箱和空气墙跟着件一起没有）
+ * - 门：`gates` 支持多扇门。写 `{ auto: "midpoints", width }` 自动在四条边的中点各开一扇（共 4 扇，改 rect 会自动跟）；也可写 `[{x,z,width},…]` 或旧的单个 `{x,z,width}`。落进任一门圈的件直接不摆（碰撞箱、空气墙、裙边跟着件一起没有）
  * - 改范围/密度/门/碰撞：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
  */
 export class Territory
@@ -22,7 +22,7 @@ export class Territory
         this.colliders = []
         this.visible = true
         this.rect = null
-        this.gate = null
+        this.gates = []
         this.setFromDescription()
     }
 
@@ -47,7 +47,7 @@ export class Territory
 
         // 对外暴露矩形，供导弹防御系统判定「是否进入地盘」
         this.rect = description.rect
-        this.gate = description.gate || null
+        this.gates = this.buildGates(description.gates ?? description.gate, description.rect)
 
         // 懒加载栏杆件
         let resource
@@ -83,20 +83,59 @@ export class Territory
     }
 
     /**
-     * 这件栏杆是不是落在门里。判据用的是「件中心到门中心的圆距离」而不是「在哪条边上」：
+     * 把 territory.json 的 gates 配置归一成一个门数组。
+     * - `{ auto: "midpoints", width }`：自动取四条边中点各开一扇（改 rect 会跟着重算）
+     * - `[{x,z,width},…]`：显式多门
+     * - 旧的单个 `{x,z,width}`：也兼容，当成一扇
+     */
+    buildGates(_conf, _rect)
+    {
+        if(!_conf || !_rect)
+            return []
+
+        // 显式列表
+        if(Array.isArray(_conf))
+            return _conf.map((gate) => ({ x: gate.x, z: gate.z, width: gate.width ?? 6 }))
+
+        const width = _conf.width ?? 6
+
+        // 自动四边中点
+        if(_conf.auto === 'midpoints')
+        {
+            const cx = (_rect.minX + _rect.maxX) * 0.5
+            const cz = (_rect.minZ + _rect.maxZ) * 0.5
+
+            return [
+                { x: cx, z: _rect.minZ, width: width }, // 南
+                { x: cx, z: _rect.maxZ, width: width }, // 北
+                { x: _rect.minX, z: cz, width: width }, // 西
+                { x: _rect.maxX, z: cz, width: width }, // 东
+            ]
+        }
+
+        // 单个点（向后兼容）
+        if(typeof _conf.x === 'number' && typeof _conf.z === 'number')
+            return [ { x: _conf.x, z: _conf.z, width: width } ]
+
+        return []
+    }
+
+    /**
+     * 这件栏杆是不是落在任意一扇门里。判据用的是「件中心到门中心的圆距离」而不是「在哪条边上」：
      * 门总是开在四条直边之一上，同边的件沿边距离 = 直线距离，这样不用重复存一份 side 信息，
      * 也不会因为把门改到另一条边就默默失效。
      */
     isInGate(_x, _z)
     {
-        const gate = this.gate
+        for(const gate of this.gates)
+        {
+            const radius = (gate.width ?? 6) * 0.5
 
-        if(!gate)
-            return false
+            if(Math.hypot(_x - gate.x, _z - gate.z) < radius)
+                return true
+        }
 
-        const radius = (gate.width ?? 6) * 0.5
-
-        return Math.hypot(_x - gate.x, _z - gate.z) < radius
+        return false
     }
 
     getPerimeterPoints(_rect, _step, _description = {})
