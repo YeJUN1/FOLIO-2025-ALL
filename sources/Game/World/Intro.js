@@ -113,6 +113,28 @@ export class Intro
         }
     }
 
+    /**
+     * 出生点被 territory 的 applySpawn 异步挪走后，把开场圆环 + 文字标签一起搬到新中心。
+     * 只平移 x/z（环贴地 y=0.001、标签悬浮 y=3.3 都各自固定，不能跟着出生点的 y=4 走），
+     * 标签相对中心的偏移靠「整体平移同样的 delta」自动保留。
+     */
+    recenter(_position)
+    {
+        const dx = _position.x - this.center.x
+        const dz = _position.z - this.center.z
+
+        if(Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6)
+            return
+
+        this.center.x = _position.x
+        this.center.z = _position.z
+
+        this.circle.mesh.position.x += dx
+        this.circle.mesh.position.z += dz
+        this.label.position.x += dx
+        this.label.position.z += dz
+    }
+
     setText()
     {
         this.text = {}

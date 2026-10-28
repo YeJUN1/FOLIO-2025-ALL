@@ -11,6 +11,7 @@ import { Game } from '../Game.js'
  * - 空气墙：`wall.height` 在每件栏杆正上方再叠一段无视觉的碰撞盒，拦住「一跳就翻进来」
  * - 水下裙边：`wall.depth` 在每件栏杆正下方再叠一段无视觉碰撞盒，扎进海底以下，拦住「从海里贴着海底穿到围栏下面进来」
  * - 门：`gates` 支持多扇门。写 `{ auto: "midpoints", width }` 自动在四条边的中点各开一扇（共 4 扇，改 rect 会自动跟）；也可写 `[{x,z,width},…]` 或旧的单个 `{x,z,width}`。落进任一门圈的件直接不摆（碰撞箱、空气墙、裙边跟着件一起没有）
+ * - 出生点：`spawn` 把 glb 里写死的命名 respawn 点（默认 landing）的坐标覆盖成指定 x/z（`applySpawn`，数据驱动、不动二进制模型）
  * - 改范围/密度/门/碰撞：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
  */
 export class Territory
@@ -48,6 +49,9 @@ export class Territory
         // 对外暴露矩形，供导弹防御系统判定「是否进入地盘」
         this.rect = description.rect
         this.gates = this.buildGates(description.gates ?? description.gate, description.rect)
+
+        // 出生点覆盖：把 glb 里的命名 respawn 点挪到 territory.json 指定的坐标（数据驱动，不动二进制模型）
+        this.applySpawn(description.spawn)
 
         // 懒加载栏杆件
         let resource
@@ -130,6 +134,44 @@ export class Territory
             return [ { x: _conf.x, z: _conf.z, width: width } ]
 
         return []
+    }
+
+    /**
+     * 把某个出生点（默认 landing）的坐标覆盖成 territory.json 里 `spawn` 指定的值。
+     * glb 里的 respawn 位置是写死的二进制，改它麻烦；这里在运行时直接改 Respawns 缓存的 item，
+     * Player 首次出生、地图 pin、后续 respawn 读的都是同一个 item，改一处全生效。
+     * 只改 x/z（y 由 Respawns 固定为 4，从空中落下）；rotation 可选。
+     */
+    applySpawn(_spawn)
+    {
+        if(!_spawn)
+            return
+
+        const name = _spawn.name ?? 'landing'
+        const item = this.game.respawns?.getByName(name)
+
+        if(!item)
+        {
+            console.log(`Territory > spawn: 找不到出生点「${name}」，跳过覆盖`)
+            return
+        }
+
+        if(typeof _spawn.x === 'number')
+            item.position.x = _spawn.x
+
+        if(typeof _spawn.z === 'number')
+            item.position.z = _spawn.z
+
+        if(typeof _spawn.rotation === 'number')
+            item.rotation = _spawn.rotation
+
+        this.spawn = item
+
+        // 开场圆环/标签在 World 构造时就按老出生点定死了（比本方法早），这里同步把它搬过来
+        this.game.world?.intro?.recenter(item.position)
+
+        // 揭示圈（着色器环心）+ 点击判定球在 Reveal 构造时（比 World 还早）也锁了老出生点，一并搬
+        this.game.reveal?.recenter(item.position)
     }
 
     /**
