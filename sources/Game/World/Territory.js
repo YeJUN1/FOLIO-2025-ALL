@@ -9,6 +9,7 @@ import { Game } from '../Game.js'
  * - 每件用 physics 射线贴地（复用 Floor.js 的 heightfield 碰撞体），落不到地面时兜底到水面高度
  * - 碰撞：每件一个 fixed cuboid（`colliders` 开关），车撞得上、开不出去，只能走门
  * - 空气墙：`wall.height` 在每件栏杆正上方再叠一段无视觉的碰撞盒，拦住「一跳就翻进来」
+ * - 水下裙边：`wall.depth` 在每件栏杆正下方再叠一段无视觉碰撞盒，扎进海底以下，拦住「从海里贴着海底穿到围栏下面进来」
  * - 门：`gate` 指定一个世界坐标点 + 宽度，落在那个圈里的件直接不摆（碰撞箱和空气墙跟着件一起没有）
  * - 改范围/密度/门/碰撞：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
  */
@@ -168,6 +169,9 @@ export class Territory
         // 空气墙：正上方再叠一段纯碰撞盒（无视觉），拦住「一跳就翻进来」。0 / 缺省 = 不加
         const wallHeight = _description.wall?.height ?? _description.wall ?? 0
         const wallThickness = _description.wall?.thickness ?? 1
+        // 水下裙边：正下方再叠一段纯碰撞盒，从件底扎到 depth 米以下。0 / 缺省 = 不加
+        // （海面上那几件的底被抬到水线附近，件底到海底之间是空的，不堵就能贴着海底钻进来）
+        const wallDepth = _description.wall?.depth ?? 0
 
         const colliders = [
             {
@@ -185,6 +189,17 @@ export class Territory
                 shape: 'cuboid',
                 parameters: [ size.x * 0.5 * _scale, wallHeight * 0.5, wallThickness * 0.5 ],
                 position: { x: center.x * _scale, y: fenceTop + wallHeight * 0.5 - 0.5, z: center.z * _scale },
+            })
+        }
+
+        if(wallDepth > 0)
+        {
+            // 与空气墙镜像：顶边上伸 0.5 米压进件底接缝，往下一直扎到 depth 以下；
+            // 陆地那段扎进实心地面、海面那段（件底≈-0.25）扎到基岩(-2.0)以下，都是 fixed 撞 fixed，无害
+            colliders.push({
+                shape: 'cuboid',
+                parameters: [ size.x * 0.5 * _scale, wallDepth * 0.5, wallThickness * 0.5 ],
+                position: { x: center.x * _scale, y: -wallDepth * 0.5 + 0.5, z: center.z * _scale },
             })
         }
 
