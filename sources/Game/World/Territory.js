@@ -8,7 +8,8 @@ import { Game } from '../Game.js'
  *
  * - 每件用 physics 射线贴地（复用 Floor.js 的 heightfield 碰撞体），落不到地面时兜底到水面高度
  * - 碰撞：每件一个 fixed cuboid（`colliders` 开关），车撞得上、开不出去，只能走门
- * - 门：`gate` 指定一个世界坐标点 + 宽度，落在那个圈里的件直接不摆（碰撞箱跟着件一起没有）
+ * - 空气墙：`wall.height` 在每件栏杆正上方再叠一段无视觉的碰撞盒，拦住「一跳就翻进来」
+ * - 门：`gate` 指定一个世界坐标点 + 宽度，落在那个圈里的件直接不摆（碰撞箱和空气墙跟着件一起没有）
  * - 改范围/密度/门/碰撞：只改 territory.json，无需动代码；重跑 scripts/territory-prepare.js 换件
  */
 export class Territory
@@ -144,7 +145,7 @@ export class Territory
 
         // 碰撞箱默认开，territory.json 里写 "colliders": false 可以整圈关掉
         if(_description.colliders !== false)
-            this.addCollider(_point, y, _scale)
+            this.addCollider(_point, y, _scale, _description)
     }
 
     /**
@@ -155,23 +156,43 @@ export class Territory
      *   而我们的件是贴地射线摆的，不能被物理再写回去（而且白干 166 次/件）
      * - 静态件不需要任何逐帧同步，也不应该出现在 game.objects.list 里（船的撞物检测会遍历它）
      */
-    addCollider(_point, _y, _scale)
+    addCollider(_point, _y, _scale, _description = {})
     {
         const size = this.bounds.getSize(new THREE.Vector3())
         const center = this.bounds.getCenter(new THREE.Vector3())
         const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), _point.rotationY)
 
+        // 栏杆件底面在局部 y=0，所以件顶高度就是这一件缩放后的包围盒高
+        const fenceTop = size.y * _scale
+
+        // 空气墙：正上方再叠一段纯碰撞盒（无视觉），拦住「一跳就翻进来」。0 / 缺省 = 不加
+        const wallHeight = _description.wall?.height ?? _description.wall ?? 0
+        const wallThickness = _description.wall?.thickness ?? 1
+
+        const colliders = [
+            {
+                shape: 'cuboid',
+                parameters: [ size.x * 0.5 * _scale, size.y * 0.5 * _scale, size.z * 0.5 * _scale ],
+                position: { x: center.x * _scale, y: center.y * _scale, z: center.z * _scale },
+            },
+        ]
+
+        if(wallHeight > 0)
+        {
+            // 和栏杆同样的 X 跨度（沿边方向连成一整堵），Z 向按 thickness 米居中加厚，
+            // 免得只有 0.18 米薄薄一片被人从箱棱上擦过去；底边下探 0.5 米压住件顶接缝
+            colliders.push({
+                shape: 'cuboid',
+                parameters: [ size.x * 0.5 * _scale, wallHeight * 0.5, wallThickness * 0.5 ],
+                position: { x: center.x * _scale, y: fenceTop + wallHeight * 0.5 - 0.5, z: center.z * _scale },
+            })
+        }
+
         const physical = this.game.physics.getPhysical({
             type: 'fixed',
             position: { x: _point.x, y: _y, z: _point.z },
             rotation: rotation,
-            colliders: [
-                {
-                    shape: 'cuboid',
-                    parameters: [ size.x * 0.5 * _scale, size.y * 0.5 * _scale, size.z * 0.5 * _scale ],
-                    position: { x: center.x * _scale, y: center.y * _scale, z: center.z * _scale },
-                },
-            ],
+            colliders: colliders,
         })
 
         this.colliders.push(physical)
