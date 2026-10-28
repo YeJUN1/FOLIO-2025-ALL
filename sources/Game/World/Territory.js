@@ -99,18 +99,30 @@ export class Territory
 
         const width = _conf.width ?? 6
 
-        // 自动四边中点
+        // 自动四边中点（可用 override 把某一扇钉到指定坐标，其余仍跟随 rect 中点）
         if(_conf.auto === 'midpoints')
         {
             const cx = (_rect.minX + _rect.maxX) * 0.5
             const cz = (_rect.minZ + _rect.maxZ) * 0.5
+            const override = _conf.override || {}
 
-            return [
-                { x: cx, z: _rect.minZ, width: width }, // 南
-                { x: cx, z: _rect.maxZ, width: width }, // 北
-                { x: _rect.minX, z: cz, width: width }, // 西
-                { x: _rect.maxX, z: cz, width: width }, // 东
+            const gates = [
+                { side: 'south', x: cx, z: _rect.minZ, width: width }, // 南
+                { side: 'north', x: cx, z: _rect.maxZ, width: width }, // 北
+                { side: 'west', x: _rect.minX, z: cz, width: width }, // 西
+                { side: 'east', x: _rect.maxX, z: cz, width: width }, // 东
             ]
+
+            return gates.map((gate) =>
+            {
+                const o = override[gate.side] || {}
+
+                return {
+                    x: o.x ?? gate.x,
+                    z: o.z ?? gate.z,
+                    width: o.width ?? gate.width,
+                }
+            })
         }
 
         // 单个点（向后兼容）
